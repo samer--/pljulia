@@ -8,7 +8,7 @@
    ,  jl_close/0
    ,  jl_exec/1
    ,  jl_eval/2
-   ,  (??)/1. (<$)/2, ($>)/2
+   ,  (??)/1, (<$)/2, ($>)/2
    ,  op(900,fx,??)
    ,  op(900,xfy,<$)
    ,  op(900,yfx,$>)
@@ -16,7 +16,7 @@
 
 /** <module> Use an embedded Julia
 */
-:- reexport(dcg_julia).
+:- reexport(dcg/julia).
 
 :-	use_foreign_library(foreign(julia4pl)).
 
