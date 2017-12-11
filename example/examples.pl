@@ -5,7 +5,7 @@
 :- initialization(init_env, program).
 :- initialization(init_jl, program).
 
-init_env :- debug(pljl).
+init_env :- debug(julia).
 init_jl  :-
    ?using('Plots'),
    backend(plotlyjs),

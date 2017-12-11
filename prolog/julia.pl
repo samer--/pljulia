@@ -22,14 +22,14 @@
 
 ?(Expr) :-
    term_jlstring(ans=Expr,Str),
-   debug(pljl, 'Executing: ~s',[Str]),
+   debug(julia, 'Executing: ~s',[Str]),
    jl_exec(Str),
    jl_exec("display(ans)"), nl.
 
 <?(Result, Expr) :- Expr ?> Result.
 ?>(Expr, Result) :-
    term_jlstring(Expr,Str),
-   debug(pljl, 'Evaluating: ~s',[Str]),
+   debug(julia, 'Evaluating: ~s',[Str]),
    jl_eval(Str,Result).
 
 
