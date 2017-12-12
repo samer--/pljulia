@@ -44,3 +44,5 @@ Handle more Julia syntax:
     ; to separate positional args from keyword args
     => for building dictionaries
     {} for parametric types
+
+Consider allowing Julia to call back to Prolog.
