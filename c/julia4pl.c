@@ -97,15 +97,14 @@ static int type_error(term_t actual, const char *expected)
   return PL_raise_exception(ex);
 }
 
-static int arg_error(const char *type, term_t arg)
+static int result_error(char *type)
 {
 	term_t ex = PL_new_term_ref();
 	int rc;
 
   rc=PL_unify_term(ex, PL_FUNCTOR_CHARS, "error", 1,
-		      PL_FUNCTOR_CHARS, "arg_error", 2,
-		        PL_CHARS, type,
-		        PL_TERM, arg);
+		      PL_FUNCTOR_CHARS, "unsupported_julia_type_error", 1,
+		        PL_CHARS, type);
 
   return PL_raise_exception(ex);
 }
@@ -122,38 +121,18 @@ static int julia_error()
   return PL_raise_exception(ex);
 }
 
-static int jval_term(jl_value_t *v, term_t head) {
-	atom_t name;
-	int    rc, arity;
-	const char  *type;
+static char *pjl_sym_name(jl_value_t *v) { return jl_symbol_name((jl_sym_t *)v); }
 
-	if (!PL_get_name_arity(head,&name,&arity)) return type_error(head,"term");
-	type=PL_atom_chars(name);
-	switch (arity) {
-	case 1: {
-			term_t a1=PL_new_term_ref();
-			rc=PL_get_arg(1,head,a1); // !!!! check return value
-
-			if (!strcmp(type,"int")) {
-            return PL_unify_integer(a1, jl_unbox_int64(v));
-			} else if (!strcmp(type,"float")) {
-            return PL_unify_float(a1, jl_unbox_float64(v));
-			} else if (!strcmp(type,"string")) {
-				return PL_unify_chars(a1, PL_STRING | REP_UTF8, -1, jl_string_ptr(v));
-				/* return PL_unify_string_chars(a1, jl_string_ptr(v)); */
-			} else if (!strcmp(type,"atom")) {
-				return PL_unify_chars(a1, PL_ATOM | REP_UTF8, -1, jl_symbol_name((jl_sym_t *)v));
-				/* return PL_unify_atom_chars(a1, jl_symbol_name(v)); */
-			} else {
-				return arg_error(type,head);
-			}
-
-
-			break;
-		}
-	case 0: return arg_error("unary term", head); // !!!! FIXME
-	}
-	return FALSE;
+static int jval_term(jl_value_t *v, term_t t) {
+	int rc;
+	if (jl_typeis(v, jl_float64_type)) rc = PL_unify_float(t, jl_unbox_float64(v));
+	else if (jl_is_int64(v))   rc = PL_unify_integer(t, jl_unbox_int64(v));
+	else if (jl_is_string(v))  rc = PL_unify_chars(t, PL_STRING | REP_UTF8, -1, jl_string_ptr(v));
+	else if (jl_is_bool(v))    rc = PL_unify_atom_chars(t, jl_unbox_bool(v) ? "true" : "false");
+	else if (jl_is_symbol(v))  rc = PL_unify_term(t, PL_FUNCTOR_CHARS, ":", 1, PL_CHARS, pjl_sym_name(v));
+	else if (jl_is_nothing(v)) rc = PL_unify_atom_chars(t, "nothing");
+	else rc = result_error(jl_symbol_name(((jl_datatype_t *)jl_typeof(v))->name->name));
+	return rc;
 }
 
 static int eval_string(char *str, jl_value_t **pv) {

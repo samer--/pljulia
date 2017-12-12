@@ -18,7 +18,7 @@ backend(B)  :- member(B,[plotlyjs, unicodeplots, gr, glvisualization]), ? B@[].
 eg(brownian_motion) :- ?plot(cumsum(randn(500,3)), xlabel="time", ylabel="cromulence").
 eg(heatmap) :- ?heatmap(cumsum(randn(50,50)`), color= :fire).
 eg(gradients(Lib)) :-
-   int(N) <? length(clibraries()),
+   N <? length(clibraries()),
    between(1,N,I),
-   atom(Lib) <? clibraries()[I],
-   ?showlibrary(:Lib).
+   Lib <? clibraries()[I],
+   ?showlibrary(Lib).
