@@ -1,3 +1,11 @@
+/*
+   pljulia examples. Requires Plots.jl package
+   and some graphics backends, such as PlotlyJS.pl
+   These are installed in Julia with
+
+      Pkg.add("Plots")
+      Pkg.add("PlotlyJS")
+*/
 :- use_module(library(julia)).
 
 :- set_prolog_flag(back_quotes, symbol_char).

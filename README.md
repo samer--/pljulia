@@ -3,7 +3,7 @@ Embedded Julia for SWI Prolog
 
 
 This module allows Prolog code to use an embedded instance of Julia,
-a language for numerica and technical computing.
+a language for numerical and technical computing.
 
 
 ## INSTALLATION
@@ -17,5 +17,9 @@ Then do
 
 ## USAGE
 
-See examples/example.pl
+    ?- use_module(library(julia)).
+    ?- ?cumsum(rand(4,4)).
+    ?- X <? 6*7.
+    ?- "hello world"[1:2:end] ?> X.
 
+See examples/example.pl for more, including plotting.
