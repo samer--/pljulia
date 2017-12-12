@@ -53,30 +53,23 @@
     \\ for lambda
 
    ---++++ Types
-
    ==
-   X :>: Y :: expr :-  X::expr, Y::expr.
-   X,Y     :: expr :-  X::expr, Y::expr.
-   X=Y     :: expr :-  X::ml_lval, Y::expr.
+   expr(A)       % A Julia expression
    ==
 
-   ==
-   expr(A)       % A Matlab expression, possibly with multiple return values
-   ==
+   ---++++ Julia expression syntax
 
-   ---++++ Matlab expression syntax
-
-   The Matlab expression syntax adopted by this module allows Prolog terms to represent
-   or denote Matlab expressions. Let T be the domain of recognised Prolog terms (corresponding to
-   the type expr), and M be the domain of Matlab expressions written in Matlab syntax.
-   Then V : T->M is the valuation function which maps Prolog term X to Matlab expression V[X].
+   The expression syntax adopted by this module allows Prolog terms to represent
+   or denote Julia expressions. Let T be the domain of recognised Prolog terms (corresponding to
+   the type expr), and M be the domain of Julia expressions written in Julia syntax.
+   Then V : T->M is the valuation function which maps Prolog term X to Julia expression V[X].
    These are some of the constructs it recognises:
 
    ==
-   X:>:Y           % |--> V[X]; V[Y]  (sequential evaluation hiding first result)
+   X:>:Y           % |--> V[X]; V[Y]  (sequential evaluation returning second value)
    X=Y             % |--> V[X]=V[Y] (assignment, X must denote a valid left-value)
-   if(X,Y)         % |--> if V[X], V[Y], end
-   if(X,Y,Z)       % |--> if V[X], V[Y], else V[Z], end
+   if(X,Y)         % |--> if V[X] then V[Y] end
+   if(X,Y,Z)       % |--> if V[X] then V[Y] else V[Z] end
 
    +X              % |--> +(V[X])
    -X              % |--> -(V[X])
@@ -90,6 +83,7 @@
    X.*Y            % |--> .*(V[X],V[Y])
    X./Y            % |--> ./(V[X],V[Y])
    X.\Y            % |--> .\(V[X],V[Y])
+   X rdiv Y        % |--> //(V[X],V[Y])
    X:Y:Z           % |--> colon(V[X],V[Y],V[Z])
    X:Z             % |--> colon(V[X],V[Z])
    X>Z             % |--> >(V[X],V[Y])
@@ -99,6 +93,7 @@
    X==Z            % |--> ==(V[X],V[Y])
    [X1,X2,...]     % |--> [ V[X1], V[X2], ... ]
 
+   :X              % |--> :V[X] (symbol or abstract syntax tree)
    'Inf'           % |--> Inf (positive infinity)
    'NaN'           % |--> NaN (not a number)
    X`              % |--> ctranpose(V[X]) (conjugate transpose, V[X]')
@@ -226,7 +221,6 @@ expr_with(Lambda,Y) --> {copy_term(Lambda,Y\\PY)}, expr(PY).
 % dimensions implicit in nested list representation
 array_dims([X|_],M) :- !, array_dims(X,N), M is N+1.
 array_dims(_,0).
-
 
 %% array(+Dims:natural, +Id:ml_eng, +Array)// is det.
 %
