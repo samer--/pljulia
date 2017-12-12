@@ -19,8 +19,6 @@
 
 :- module(dcg_julia,
       [  term_jlstring/2   % (+Expr, -String)  ~Prolog term to Julia string
-      ,  term_texatom/2    % (+Expr, -Atom)    ~Prolog term to TeX expression
-
       ,  op(150,fx,:)      % symbols
       ,  op(160,yf,'`')    % postfix ctranspose operator
       ,  op(800,xfy,:>:)
@@ -275,35 +273,3 @@ varnames(N,[TN|Rest]) :-
 %% term_jlstring(+X:expr,-Y:list(code)) is det.
 %  Convert term representing Julia expression to a list of character codes.
 term_jlstring(Term,String) :- phrase(expr(Term),String), !.
-
-%% term_texatom(+X:tex_expr,-Y:atom) is det.
-%  Convert term representing TeX expression to a string in atom form.
-term_texatom(Term,Atom) :- phrase(pl2tex(Term),String), !, atom_codes(Atom,String).
-
-%% pl2tex(+Exp:tex_expr)// is det.
-%
-% DCG for texifying expressions (useful for plot labels)
-pl2tex(A=B)  --> !, pl2tex(A), "=", pl2tex(B).
-pl2tex(A+B)  --> !, pl2tex(A), "+", pl2tex(B).
-pl2tex(A-B)  --> !, pl2tex(A), "-", pl2tex(B).
-pl2tex(A*B)  --> !, pl2tex(A), "*", pl2tex(B).
-pl2tex(A.*B) --> !, pl2tex(A), "*", pl2tex(B).
-pl2tex(A/B)  --> !, pl2tex(A), "/", pl2tex(B).
-pl2tex(A./B) --> !, pl2tex(A), "/", pl2tex(B).
-pl2tex(A\B)  --> !, pl2tex(A), "\\", pl2tex(B).
-pl2tex(A.\B) --> !, pl2tex(A), "\\", pl2tex(B).
-pl2tex(A^B)  --> !, pl2tex(A), "^", brace(pl2tex(B)).
-pl2tex(A.^B) --> !, pl2tex(A), "^", brace(pl2tex(B)).
-pl2tex((A,B))--> !, pl2tex(A), ", ", pl2tex(B).
-pl2tex(A;B)--> !, pl2tex(A), "; ", pl2tex(B).
-pl2tex(A:B)--> !, pl2tex(A), ": ", pl2tex(B).
-pl2tex({A})  --> !, "\\{", pl2tex(A), "\\}".
-pl2tex([])   --> !, "[]".
-pl2tex([X|XS])  --> !, "[", seqmap_with_sep(", ",pl2tex,[X|XS]), "]".
-
-pl2tex(A\\B) --> !, "\\lambda ", pl2tex(A), ".", pl2tex(B).
-pl2tex(abs(A)) --> !, "|", pl2tex(A), "|".
-pl2tex(A)    --> {atomic(A)}, escape_with(0'\\,0'_,at(A)).
-pl2tex(A) -->
-   {compound(A), A=..[H|T] },
-   pl2tex(H), paren(seqmap_with_sep(", ",pl2tex,T)).
