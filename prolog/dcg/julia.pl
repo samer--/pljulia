@@ -18,8 +18,8 @@
  */
 
 :- module(dcg_julia,
-      [  term_jlstring/2   % (+Expr, -String)  ~Prolog term to Matlab string
-      ,  term_texatom/2    % (+Expr, -Atom)         ~Prolog term to TeX expression
+      [  term_jlstring/2   % (+Expr, -String)  ~Prolog term to Julia string
+      ,  term_texatom/2    % (+Expr, -Atom)    ~Prolog term to TeX expression
 
       ,  op(150,fx,:)      % symbols
       ,  op(160,yf,'`')    % postfix ctranspose operator
@@ -54,7 +54,7 @@
 
    ---++++ Types
    ==
-   expr(A)       % A Julia expression
+   expr       % A Julia expression
    ==
 
    ---++++ Julia expression syntax
@@ -112,7 +112,7 @@
    Things to bypass default formatting
    ==
    noeval(_)          % triggers a failure when processed
-   \(P)               % escape and call phrase P directly to generate Matlab string
+   \(P)               % escape and call phrase P directly to generate string
    $(X)               % calls pl2jl_hook/2, denotes V[Y] where pljl_hook(X,Y).
    '$VAR'(N)          % gets formatted as p_N where N is assumed to be atomic.
    ==
@@ -141,7 +141,7 @@
 %  language such that =|V[$X] = V[Y]|= if =|pl2jl_hook(X,Y)|=.
 
 
-%% expr(+X:expr(A))// is nondet.
+%% expr(+X:expr)// is nondet.
 %  Convert Julia expression as a Prolog term to string representation.
 expr(A:>:B)      --> !, "(", expr(A), ";", expr(B), ")".
 expr(A=B)        --> !, "(", expr(A), "=", expr(B), ")".
@@ -208,7 +208,7 @@ expr(arr(D,L))   --> !, array(D,L).
 expr(arr(D,L,P)) --> !, array(D,P,L).
 expr('$VAR'(N))  --> !, "p_", atm(N).
 
-% these are the catch-all clauses which will deal with matlab names, and literals
+% these are the catch-all clauses which will deal with identifiers and literals
 % should we filter on the head functor?
 expr(A) --> {string(A)}, !, qq(str(A)).
 expr(A) --> {atomic(A)}, !, atm(A).
@@ -224,7 +224,7 @@ array_dims(_,0).
 
 %% array(+Dims:natural, +Id:ml_eng, +Array)// is det.
 %
-%  Format nested lists as Matlab multidimensional array.
+%  Format nested lists as a multidimensional array.
 %  Dims is the number of dimensions of the resulting array and
 %  should equal the nesting level of Array, ie if Array=[1,2,3],
 %  Dims=1; if Array=[[1,2],[3,4]], Dims=2, etc.
@@ -239,7 +239,7 @@ array(2,P,L) --> !, "[", seqmap_with_sep(" ",array(1,P),L), "]".
 array(N,P,L) --> {succ(M,N)}, "cat(", atm(N), ",", seqmap_with_sep(",",array(M,P),L), ")".
 
 %% clist(+Id:ml_eng, +Items:list(expr))// is det.
-%  Format list of Matlab expressions in a comma separated list.
+%  Format list of Julia expressions in a comma separated list.
 clist([]) --> [].
 clist([L1|LX])  --> expr(L1), seqmap(do_then_call(",",expr),LX).
 
@@ -247,7 +247,7 @@ slist([]) --> [].
 slist([L1|LX])  --> expr(L1), seqmap(do_then_call(" ",expr),LX).
 
 %% arglist(+Id:ml_eng, +Args:list(expr))// is det.
-%  DCG rule to format a list of Matlab expressions as function arguments
+%  DCG rule to format a list of Julia expressions as function arguments
 %  including parentheses.
 arglist(X) --> "(", clist(X), ")".
 
@@ -255,7 +255,7 @@ arglist(X) --> "(", clist(X), ")".
 %% args(+Id:ml_eng, +A1:expr, +A2:expr)// is det.
 %% args(+Id:ml_eng, +A1:expr)// is det.
 %
-%  DCG rule to format one or two Matlab expressions as function arguments
+%  DCG rule to format one or two Julia expressions as function arguments
 %  including parentheses.
 args(X,Y) --> "(", expr(X), ",", expr(Y), ")".
 args(X) --> "(", expr(X), ")".
@@ -273,7 +273,7 @@ varnames(N,[TN|Rest]) :-
 
 
 %% term_jlstring(+X:expr,-Y:list(code)) is det.
-%  Convert term representing Matlab expression to a list of character codes.
+%  Convert term representing Julia expression to a list of character codes.
 term_jlstring(Term,String) :- phrase(expr(Term),String), !.
 
 %% term_texatom(+X:tex_expr,-Y:atom) is det.
