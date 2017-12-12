@@ -102,9 +102,10 @@ static int result_error(char *type)
    term_t ex = PL_new_term_ref();
    int rc;
 
-  rc=PL_unify_term(ex, PL_FUNCTOR_CHARS, "error", 1,
-                   PL_FUNCTOR_CHARS, "unsupported_julia_type_error", 1,
-                   PL_CHARS, type);
+  rc=PL_unify_term(ex, PL_FUNCTOR_CHARS, "error", 2,
+                   PL_FUNCTOR_CHARS, "unsupported_julia_return_type_error", 1,
+                   PL_CHARS, type, 
+                   PL_VARIABLE);
 
   return PL_raise_exception(ex);
 }
