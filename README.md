@@ -17,4 +17,5 @@ Then do
 
 ## USAGE
 
+See examples/example.pl
 

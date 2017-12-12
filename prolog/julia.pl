@@ -4,7 +4,7 @@
 */
 
 :- module(julia, [
-		jl_open/0
+      jl_open/0
    ,  jl_close/0
    ,  jl_exec/1
    ,  jl_eval/2
@@ -12,13 +12,13 @@
    ,  op(900,fx,?)
    ,  op(900,xfy,<?)
    ,  op(900,yfx,?>)
-	]).
+   ]).
 
-/** <module> Use an embedded Julia
+/** <module> Embedded Julia
 */
 :- reexport(dcg/julia).
 
-:-	use_foreign_library(foreign(julia4pl)).
+:- use_foreign_library(foreign(julia4pl)).
 
 ?(Expr) :-
    term_jlstring(ans=Expr,Str),
