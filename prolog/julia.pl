@@ -24,15 +24,24 @@
 
    See library(dcg/julia) for description of valid expression terms.
 
-	The type =|val|= denotes values that can be exchanged with Julia by
-	direct conversion, rather than via strings. It is a union:
-	==
-	val == integer | float | string | bool | symbol | void
+   The type =|val|= denotes values that can be exchanged with Julia by
+   direct conversion, rather than via strings. It is a union:
+   ==
+   val == integer | float | string | bool | symbol | void
 
-	bool   ---> true; false.
-	symbol ---> :atom.
-	void   ---> nothing.
-	==
+   bool   ---> true; false.
+   symbol ---> :atom.
+   void   ---> nothing.
+   ==
+   These types are mapped to and from Julia types as follows:
+   ==
+   Int64   <--> integer
+   Float64 <--> float
+   String  <--> string
+   Symbol  <--> symbol
+   Bool    <--> bool
+   Void    <--> void
+   ==
 */
 
 :- use_foreign_library(foreign(julia4pl)).
@@ -47,14 +56,6 @@
 %  Evaluate Julia expression S, which may be string, atom, codes or chars.
 %  The following Julia return types are recognised and are converted to Prolog values
 %  and unified with X:
-%  ==
-%  Int64   -> integer
-%  Float64 -> float
-%  String  -> string
-%  Symbol  -> symbol (where symbol ---> :atom)
-%  Bool    -> bool (where bool ---> true; false)
-%  ==
-%  In addition, the Julia value =|nothing|= is represented as the Prolog atom =|nothing|=.
 %  Any other return type raises an =|unsupported_julia_return_type_error|= exception.
 %  If any Julia exceptions are raised, the Julia function =|showerror|= is used
 %  to print the details, and a Prolog =|julia_error|= exception is raised.
