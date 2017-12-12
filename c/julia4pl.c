@@ -18,8 +18,6 @@
 #include <stdio.h>
 #include <julia.h>
 
-static functor_t int_1, float_1, double_1, string_1;
-
 static int unify_list_doubles(term_t list, double *x, int n)
 {
   list=PL_copy_term_ref(list);
@@ -50,10 +48,12 @@ static int unify_list_doubles(term_t list, double *x, int n)
 
 install_t install();
 
-foreign_t pjl_open();
-foreign_t pjl_close();
+/* foreign_t pjl_open(); */
+/* foreign_t pjl_close(); */
 foreign_t pjl_exec(term_t expr);
 foreign_t pjl_eval(term_t expr, term_t res);
+foreign_t pjl_call1(term_t expr, term_t arg1, term_t res);
+foreign_t pjl_call2(term_t expr, term_t arg1, term_t arg2, term_t res);
 
 static int pjl_on_halt(int rc, void *p) {
    jl_atexit_hook(rc);
@@ -61,15 +61,12 @@ static int pjl_on_halt(int rc, void *p) {
 }
 
 install_t install() {
-   PL_register_foreign("jl_open",   0, (void *)pjl_open, 0);
-   PL_register_foreign("jl_close",   0, (void *)pjl_open, 0);
+   /* PL_register_foreign("jl_open",   0, (void *)pjl_open, 0); */
+   /* PL_register_foreign("jl_close",  0, (void *)pjl_open, 0); */
    PL_register_foreign("jl_exec",   1, (void *)pjl_exec, 0);
    PL_register_foreign("jl_eval",   2, (void *)pjl_eval, 0);
-
-   int_1     = PL_new_functor(PL_new_atom("int"),1);
-   float_1   = PL_new_functor(PL_new_atom("float"),1);
-   double_1  = PL_new_functor(PL_new_atom("double"),1);
-   string_1  = PL_new_functor(PL_new_atom("string"),1);
+   PL_register_foreign("jl_call",   3, (void *)pjl_call1, 0);
+   PL_register_foreign("jl_call",   4, (void *)pjl_call2, 0);
 
    printf("Opening Julia...\n");
    jl_init();
@@ -110,18 +107,6 @@ static int result_error(char *type)
   return PL_raise_exception(ex);
 }
 
-static int julia_error()
-{
-   term_t ex = PL_new_term_ref();
-   int rc;
-
-  rc = PL_unify_term(ex, PL_FUNCTOR_CHARS, "error", 2,
-                     PL_FUNCTOR_CHARS, "julia_error", 0,
-                     PL_VARIABLE);
-
-  return PL_raise_exception(ex);
-}
-
 static char *pjl_sym_name(jl_value_t *v) { return jl_symbol_name((jl_sym_t *)v); }
 
 static int jval_term(jl_value_t *v, term_t t) {
@@ -136,31 +121,98 @@ static int jval_term(jl_value_t *v, term_t t) {
    return rc;
 }
 
-static int eval_string(char *str, jl_value_t **pv) {
-   *pv = jl_eval_string(str);
-   if (jl_exception_occurred()) {
+static int term_jval(term_t t, jl_value_t **pv) {
+   switch (PL_term_type(t)) {
+      case PL_INTEGER: {
+         int64_t x;
+         return PL_get_int64(t,&x) && (*pv=jl_box_int64(x), TRUE);
+      }
+      case PL_FLOAT: {
+         double x;
+         return PL_get_float(t,&x) && (*pv=jl_box_float64(x), TRUE);
+      }
+      case PL_STRING: {
+         char *x;
+         return PL_get_chars(t,&x,CVT_STRING | BUF_RING | REP_UTF8)
+             && (*pv=jl_cstr_to_string(x), TRUE);
+      }
+      case PL_ATOM: {
+         char *x;
+         if (!PL_get_chars(t,&x,CVT_ATOM)) return FALSE;
+         if (!strcmp(x,"true"))       { *pv = jl_true; return TRUE; }
+         else if (!strcmp(x,"false")) { *pv = jl_false; return TRUE; }
+         else if (!strcmp(x,"nothing")) { *pv = jl_nothing; return TRUE; }
+      }
+      case PL_TERM: {
+         atom_t name;
+         int    rc, arity;
+         const char  *type;
+
+         if (PL_get_name_arity(t,&name,&arity)
+             && arity==1 && !strcmp(":", PL_atom_chars(name))) {
+            term_t a=PL_new_term_ref();
+            char *x;
+            return PL_get_arg(1,t,a)
+                && PL_get_chars(a,&x,CVT_ATOM | REP_UTF8) // return type_error(a1,"atom");
+                && (*pv=(jl_value_t *)jl_symbol(x), TRUE);
+         }
+      }
+   }
+   return type_error(t, "integer | float | string | bool | symbol | void");
+}
+
+static int check() {
+   if (!jl_exception_occurred()) return TRUE;
+   else {
+      term_t ex = PL_new_term_ref();
+
       jl_call2(jl_get_function(jl_base_module, "showerror"),
                jl_stderr_obj(),
                jl_exception_occurred());
       jl_printf(jl_stderr_stream(), "\n");
-      return julia_error();
-   } else return TRUE;
+
+      return PL_unify_term(ex, PL_FUNCTOR_CHARS, "error", 2,
+                           PL_FUNCTOR_CHARS, "julia_error", 0,
+                           PL_VARIABLE)
+         &&  PL_raise_exception(ex);
+   }
 }
 
-foreign_t pjl_open() { return TRUE; }
-foreign_t pjl_close() { return TRUE; }
+/* foreign_t pjl_open() { return TRUE; } */
+/* foreign_t pjl_close() { return TRUE; } */
 
 foreign_t pjl_exec(term_t expr) {
    char *str;
    jl_value_t *jval;
    return term_to_utf8_string(expr, &str)
-       && eval_string(str, &jval);
+       && (jval=jl_eval_string(str), check());
 }
 
 foreign_t pjl_eval(term_t expr, term_t result) {
    char *str;
    jl_value_t *jval;
    return term_to_utf8_string(expr, &str)
-       && eval_string(str, &jval)
+       && (jval=jl_eval_string(str), check())
        && jval_term(jval, result);
+}
+
+foreign_t pjl_call1(term_t fn, term_t arg1, term_t res) {
+   char *str;
+   jl_value_t *jfn, *jarg1, *jval;
+   return term_to_utf8_string(fn, &str)
+       && (jfn=jl_eval_string(str), check())
+       && term_jval(arg1, &jarg1)
+       && (jval=jl_call1(jfn, jarg1), check())
+       && jval_term(jval, res);
+}
+
+foreign_t pjl_call2(term_t fn, term_t arg1, term_t arg2, term_t res) {
+   char *str;
+   jl_value_t *jfn, *jarg1, *jarg2, *jval;
+   return term_to_utf8_string(fn, &str)
+       && (jfn=jl_eval_string(str), check())
+       && term_jval(arg1, &jarg1)
+       && term_jval(arg2, &jarg2)
+       && (jval=jl_call2(jfn, jarg1, jarg2), check())
+       && jval_term(jval, res);
 }
