@@ -38,8 +38,9 @@
 %  ==
 %  Int64   -> integer
 %  Float64 -> float
-%  Symbol  -> symbol (where symbol ---> :atom)
 %  String  -> string
+%  Symbol  -> symbol (where symbol ---> :atom)
+%  Bool    -> bool (where bool ---> true; false)
 %  ==
 %  In addition, the Julia value =|nothing|= is represented as the Prolog atom =|nothing|=.
 %  Any other return type raises an =|unsupported_julia_return_type_error|= exception.
