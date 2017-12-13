@@ -34,6 +34,7 @@
       ,  op(200,yfx,@)     % function application
       ,  op(200,yfx,.@)    % broadcasting function application
       ,  op(300,yf,...)    % splicing
+      ,  op(700,xfy,=>)    % dictionary key-value pair
       ]).
 
 
@@ -44,22 +45,16 @@
    TODO
 
    @ for macros?
-   => for dictionaries
    ; for keyword arguments
 
    REVIEW
     \\ for lambda
 
-   ---++++ Types
-   ==
-   expr       % A Julia expression
-   ==
-
    ---++++ Julia expression syntax
 
    The expression syntax adopted by this module allows Prolog terms to represent
-   or denote Julia expressions. Let T be the domain of recognised Prolog terms (corresponding to
-   the type expr), and M be the domain of Julia expressions written in Julia syntax.
+   or denote Julia expressions. Let T be the domain of recognised Prolog terms (denoted by
+   type expr), and M be the domain of Julia expressions written in Julia syntax.
    Then V : T->M is the valuation function which maps Prolog term X to Julia expression V[X].
    These are some of the constructs it recognises:
 
@@ -99,7 +94,6 @@
    X\\Y            % |--> (V[X]) -> V[Y])
    q(X)            % wrap V[X] in single quotes (escaping internal quotes)
    qq(X)           % wrap V[X] in double quotes (escaping internal double quotes)
-   tq(X)           % wrap TeX expression in single quotes (escape internal quotes)
    ==
 
    ==
@@ -115,8 +109,10 @@
    '$VAR'(N)          % gets formatted as p_N where N is assumed to be atomic.
    ==
 
-   All other Prolog atoms are written using write/1, while other Prolog terms
-   are assumed to be calls to functions named according to the head functor.
+   All other Prolog atoms are written using write/1.
+   Prolog dictionaries are written as Julia dictionaries. Dictionary keys can
+   be atoms (written as Julia symbols) or small integers (written as Julia integers).
+   Other Prolog terms are assumed to be calls to functions named according to the head functor.
    Thus V[ <head>( <arg1>, <arg2>, ...) ] = <head>(V[<arg1>, V[<arg2>], ...).
 
    @tbd
@@ -151,7 +147,6 @@ expr(\X)         --> !, phrase(X).
 expr($X)         --> !, {pl2jl_hook(X,Y)}, expr(Y).
 expr(q(X))       --> !, q(expr(X)).
 expr(qq(X))      --> !, qq(expr(X)).
-expr(tq(X))      --> !, q(pl2tex(X)).
 expr(noeval(_))  --> !, {fail}. % causes evaluation to fail.
 
 expr(A+B) --> !, "+", args(A,B).
@@ -176,6 +171,7 @@ expr(\+A) --> !, "!",args(A).
 expr(A:B:C) --> !, expr(colon(A,B,C)).
 expr(A:B) --> !, expr(colon(A,B)).
 expr(rdiv(A,B)) --> !, "//", args(A,B).
+expr(A=>B)--> !, "=>",args(A,B).
 
 expr([])     --> !, "[]".
 expr([X|Xs]) --> !, "[", seqmap_with_sep(",",expr,[X|Xs]), "]".
@@ -187,10 +183,8 @@ expr(B...) --> !, expr(B), "...".
 expr(A\\B) --> !, { term_variables(A,V), varnames(V) },
    "((", arglist(A), ") -> ", expr(B), ")".
 
-% .. $
 expr([](Xs,'`')) --> !, "[", slist(Xs), "]".
-expr([](Xs,'#')) --> !, arglist(Xs).
-expr([](Is,X)) --> !, expr(X), "[", clist(Is), "]".
+expr([](Is,X))   --> !, expr(X), "[", clist(Is), "]".
 expr(A@B)        --> !, expr(A), arglist(B).
 expr(A.@B)       --> !, expr(.A), arglist(B).
 expr(.A)         --> !, "(", expr(A), ")", ".".
@@ -199,21 +193,21 @@ expr(#(A,B))     --> !, arglist([A,B]).
 expr(#(A,B,C))   --> !, arglist([A,B,C]).
 expr(#(A,B,C,D)) --> !, arglist([A,B,C,D]).
 
-% array syntax -- array class?
 expr(arr($X))    --> !, { pl2jl_hook(X,L) }, expr(arr(L)).
 expr(arr(L))     --> !, { array_dims(L,D) }, array(D,L).
 expr(arr(D,L))   --> !, array(D,L).
 expr(arr(D,L,P)) --> !, array(D,P,L).
 expr('$VAR'(N))  --> !, "p_", atm(N).
 
-% these are the catch-all clauses which will deal with identifiers and literals
-% should we filter on the head functor?
+% these are the catch-all clauses which will deal with identifiers literals function calls, and dicts
 expr(A) --> {string(A)}, !, qq(str(A)).
 expr(A) --> {atomic(A)}, !, atm(A).
 expr(F) --> {compound_name_arity(F,H,0)}, !, atm(H), "()".
+expr(A) --> {is_dict(A)}, !, {dict_pairs(A,_,Ps), maplist(pair_to_jl,Ps,Ps1)}, "Dict", arglist(Ps1).
 expr(F) --> {F=..[H|AX]}, atm(H), arglist(AX).
 
 expr_with(Lambda,Y) --> {copy_term(Lambda,Y\\PY)}, expr(PY).
+pair_to_jl(K-V, KK=>V) :- atom(K) -> KK= :K; KK=K.
 
 
 % dimensions implicit in nested list representation
@@ -249,7 +243,6 @@ slist([L1|LX])  --> expr(L1), seqmap(do_then_call(" ",expr),LX).
 %  including parentheses.
 arglist(X) --> "(", clist(X), ")".
 
-
 %% args(+Id:ml_eng, +A1:expr, +A2:expr)// is det.
 %% args(+Id:ml_eng, +A1:expr)// is det.
 %
@@ -257,7 +250,6 @@ arglist(X) --> "(", clist(X), ")".
 %  including parentheses.
 args(X,Y) --> "(", expr(X), ",", expr(Y), ")".
 args(X) --> "(", expr(X), ")".
-
 
 %% atm(+A:atom)// is det.
 %  DCG rule to format an atom using write/1.
