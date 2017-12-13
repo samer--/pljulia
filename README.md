@@ -30,6 +30,8 @@ Handle more Julia types directly, tuples and arrays.
 
 Handle more node types in Julia syntax trees.
 
+Add `jl_map/2`, like `jl_call/N` but mapped over lists.
+
 Consider having `jl_array_t` structures floating around as Prolog BLOB
 atoms, assuming they can be protected from Julia's garbage collector.
 Should be more efficient than converting to/from Prolog lists when dealing

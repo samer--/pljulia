@@ -14,7 +14,6 @@
  */
 
 #include <SWI-Prolog.h>
-
 #include <stdio.h>
 #include <julia.h>
 
@@ -79,24 +78,10 @@ int get_list_doubles(term_t list, long len, double *vals)
   return TRUE;
 }
 
-
-/* // Convert Matlab numerical (REAL) array to list */
-/* foreign_t mlMxGetReals(term_t mxterm, term_t a) */
-/* { */
-/*     mxArray *mx = term_to_mx(mxterm); */
-/*     int       n = mxGetNumberOfElements(mx); */
-
-/*     if (!mxIsDouble(mx)) return PL_type_error("mx(double)",mxterm); */
-/*     return unify_list_doubles(a,mxGetPr(mx),n); */
-/* } */
-
-
 // ---------------------------------------------------------------------------
 
 install_t install();
 
-/* foreign_t pjl_open(); */
-/* foreign_t pjl_close(); */
 foreign_t pjl_exec(term_t expr);
 foreign_t pjl_eval(term_t expr, term_t res);
 foreign_t pjl_call1(term_t expr, term_t arg1, term_t res);
@@ -108,8 +93,6 @@ static int pjl_on_halt(int rc, void *p) {
 }
 
 install_t install() {
-   /* PL_register_foreign("jl_open",   0, (void *)pjl_open, 0); */
-   /* PL_register_foreign("jl_close",  0, (void *)pjl_open, 0); */
    PL_register_foreign("jl_exec",   1, (void *)pjl_exec, 0);
    PL_register_foreign("jl_eval",   2, (void *)pjl_eval, 0);
    PL_register_foreign("jl_call",   3, (void *)pjl_call1, 0);
@@ -244,8 +227,6 @@ static int get_array(term_t vals, int n, jl_value_t **pv) {
    return get_list_doubles(vals, n, (double *)jl_array_data(x))
        && (*pv = (jl_value_t *)x, TRUE);
 }
-/* double *existingArray = (double*)malloc(sizeof(double)*10); */
-/* jl_array_t *x = jl_ptr_to_array_1d(array_type, existingArray, 10, 0); */
 
 static int term_jval(term_t t, jl_value_t **pv) {
    switch (PL_term_type(t)) {
