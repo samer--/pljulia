@@ -94,5 +94,5 @@
 <?(Result, Expr) :- Expr ?> Result.
 
 prolog:message(error(julia_error,_)) --> ['A Julia exception was thrown.'].
-prolog:message(error(unsupported_julia_return_type_error(T),_)) -->
-   ['Cannot convert Julia type `~s\' to Prolog value'-[T]].
+prolog:message(error(unsupported_julia_return_type(C,T),_)) -->
+   ['Cannot convert Julia type `~s\' to Prolog value in context ~s'-[T,C]].

@@ -18,6 +18,22 @@
 #include <stdio.h>
 #include <julia.h>
 
+static functor_t colon_1;
+
+static int unify_list_ints(term_t list, int64_t *x, int n)
+{
+  list=PL_copy_term_ref(list);
+
+  for (int i=0; i<n; i++) {
+    term_t head=PL_new_term_ref();
+    term_t tail=PL_new_term_ref();
+    if (!PL_unify_list(list,head,tail)) PL_fail;
+    if (!PL_unify_int64(head,x[i])) PL_fail;
+    list=tail;
+  }
+  return PL_unify_nil(list);
+}
+
 static int unify_list_doubles(term_t list, double *x, int n)
 {
   list=PL_copy_term_ref(list);
@@ -30,6 +46,37 @@ static int unify_list_doubles(term_t list, double *x, int n)
     list=tail;
   }
   return PL_unify_nil(list);
+}
+
+// read list of integers from term and write to int array
+int get_list_integers(term_t list, long *len, int64_t *vals)
+{
+  term_t  head=PL_new_term_ref();
+  long    n;
+
+  // copy term ref so as not to modify original
+  list=PL_copy_term_ref(list);
+  for (n=0;PL_get_list(list,head,list);n++) {
+      if (!PL_get_int64(head,&vals[n])) return FALSE;
+  }
+  if (!PL_get_nil(list)) return FALSE;
+  *len=n;
+  return TRUE;
+}
+
+// read list of floats from term and write to double array
+int get_list_doubles(term_t list, long len, double *vals)
+{
+  term_t  head=PL_new_term_ref();
+  long    n;
+
+  // copy term ref so as not to modify original
+  list=PL_copy_term_ref(list);
+  for (n=0;n<len && PL_get_list(list,head,list);n++) {
+      if (!PL_get_float(head,&vals[n])) return FALSE;
+  }
+  if (!PL_get_nil(list)) return FALSE;
+  return TRUE;
 }
 
 
@@ -68,6 +115,7 @@ install_t install() {
    PL_register_foreign("jl_call",   3, (void *)pjl_call1, 0);
    PL_register_foreign("jl_call",   4, (void *)pjl_call2, 0);
 
+   colon_1 = PL_new_functor(PL_new_atom(":"),1);
    printf("Opening Julia...\n");
    jl_init();
    PL_on_halt(pjl_on_halt, 0);
@@ -94,32 +142,110 @@ static int type_error(term_t actual, const char *expected)
    return PL_raise_exception(ex);
 }
 
-static int result_error(char *type)
+static int result_error(char *context, char *type)
 {
    term_t ex = PL_new_term_ref();
    int rc;
 
-  rc=PL_unify_term(ex, PL_FUNCTOR_CHARS, "error", 2,
-                   PL_FUNCTOR_CHARS, "unsupported_julia_return_type_error", 1,
-                   PL_CHARS, type, 
-                   PL_VARIABLE);
-
-  return PL_raise_exception(ex);
+   return PL_unify_term(ex, PL_FUNCTOR_CHARS, "error", 2,
+                        PL_FUNCTOR_CHARS, "unsupported_julia_return_type", 2,
+                        PL_CHARS, context, PL_CHARS, type, 
+                        PL_VARIABLE)
+       && PL_raise_exception(ex);
 }
 
-static char *pjl_sym_name(jl_value_t *v) { return jl_symbol_name((jl_sym_t *)v); }
+static char *sym_name(jl_value_t *v) { return jl_symbol_name((jl_sym_t *)v); }
 
-static int jval_term(jl_value_t *v, term_t t) {
+static int unify_tree(term_t t, jl_value_t *v) {
+   jl_datatype_t *dt = (jl_datatype_t *)jl_typeof(v);
    int rc;
-   if (jl_typeis(v, jl_float64_type)) rc = PL_unify_float(t, jl_unbox_float64(v));
-   else if (jl_is_int64(v))   rc = PL_unify_integer(t, jl_unbox_int64(v));
+
+   // FIXME this needs to handle literal values, QuoteNode and possibly other Julia types...
+   if (dt==jl_float64_type)    rc = PL_unify_float(t, jl_unbox_float64(v));
+   else if (dt==jl_int64_type) rc = PL_unify_integer(t, jl_unbox_int64(v));
    else if (jl_is_string(v))  rc = PL_unify_chars(t, PL_STRING | REP_UTF8, -1, jl_string_ptr(v));
    else if (jl_is_bool(v))    rc = PL_unify_atom_chars(t, jl_unbox_bool(v) ? "true" : "false");
-   else if (jl_is_symbol(v))  rc = PL_unify_term(t, PL_FUNCTOR_CHARS, ":", 1, PL_CHARS, pjl_sym_name(v));
    else if (jl_is_nothing(v)) rc = PL_unify_atom_chars(t, "nothing");
-   else rc = result_error(jl_symbol_name(((jl_datatype_t *)jl_typeof(v))->name->name));
+   else if (jl_is_symbol(v))  rc = PL_unify_chars(t, PL_ATOM | REP_UTF8, -1, sym_name(v));
+   else if (jl_is_quotenode(v)) rc = result_error("expression", "<QuoteNode>");
+   else if (jl_is_expr(v)) {
+      int  i, n = jl_expr_nargs(v);
+      char *name = jl_symbol_name(((jl_expr_t *)v)->head);
+      term_t a = PL_new_term_refs(n);
+
+      switch (n) {
+         case 1: rc=PL_unify_term(t, PL_FUNCTOR_CHARS, name, n, PL_TERM, a); break;
+         case 2: rc=PL_unify_term(t, PL_FUNCTOR_CHARS, name, n, PL_TERM, a, PL_TERM, a+1); break;
+         case 3: rc=PL_unify_term(t, PL_FUNCTOR_CHARS, name, n, PL_TERM, a, PL_TERM, a+1, PL_TERM, a+2); break;
+         case 4: rc=PL_unify_term(t, PL_FUNCTOR_CHARS, name, n, PL_TERM, a, PL_TERM, a+1, PL_TERM, a+2, PL_TERM, a+3); break;
+         otherwise: rc=FALSE;
+      }
+      for (i=0; rc && i<n; i++) rc &= unify_tree(a+i, jl_exprarg(v,i));
+   } else rc = result_error("expression", jl_symbol_name(((jl_datatype_t *)jl_typeof(v))->name->name));
    return rc;
 }
+
+static int unify_expr(term_t t, jl_value_t *v) {
+   term_t root = PL_new_term_ref();
+   return PL_unify_functor(t, colon_1)
+       && PL_get_arg(1, t, root)
+       && unify_tree(root, v);
+}
+
+static int unify_array(term_t t, jl_array_t *v) {
+   term_t l = PL_new_term_ref();
+   int rc, n = jl_array_len(v);
+   int ndims = jl_array_ndims(v);
+   jl_datatype_t *et=(jl_datatype_t *)jl_array_eltype((jl_value_t *)v);
+
+   if (ndims!=1) return result_error("array", "multidimensional");
+   if      (et==jl_float64_type) rc = unify_list_doubles(l, (double *)jl_array_data(v), n);
+   else if (et==jl_int64_type)   rc = unify_list_ints(l, (int64_t *)jl_array_data(v), n);
+   else return result_error("array", jl_symbol_name(et->name->name));
+   return PL_unify_term(t, PL_FUNCTOR_CHARS, "arr", 2, PL_INT, n, PL_TERM, l);
+   // FIXME check shape!
+   // alternatively, unify as one term with n args?
+}
+/* size_t size0 = jl_array_dim(x,0); */
+/* size_t size1 = jl_array_dim(x,1); */
+/* for(size_t i=0; i<size1; i++) */
+/*     for(size_t j=0; j<size0; j++) */
+/*         p[j + size0*i] = i + j; */
+
+static int jval_term(jl_value_t *v, term_t t) {
+   jl_datatype_t *dt = (jl_datatype_t *)jl_typeof(v);
+   int rc;
+
+   if      (dt==jl_float64_type) rc = PL_unify_float(t, jl_unbox_float64(v));
+   else if (dt==jl_int64_type)   rc = PL_unify_integer(t, jl_unbox_int64(v));
+   else if (jl_is_string(v))     rc = PL_unify_chars(t, PL_STRING | REP_UTF8, -1, jl_string_ptr(v));
+   else if (jl_is_bool(v))       rc = PL_unify_atom_chars(t, jl_unbox_bool(v) ? "true" : "false");
+   else if (jl_is_symbol(v))     rc = PL_unify_term(t, PL_FUNCTOR_CHARS, ":", 1, PL_UTF8_CHARS, sym_name(v));
+   else if (jl_is_nothing(v))    rc = PL_unify_atom_chars(t, "nothing");
+   else if (jl_is_array(v))      rc = unify_array(t, (jl_array_t *)v);
+   else if (jl_is_expr(v))       rc = unify_expr(t, v);
+   else rc = result_error("result", jl_symbol_name(((jl_datatype_t *)jl_typeof(v))->name->name));
+   return rc;
+}
+
+static int get_expr(term_t a, jl_value_t **pv) {
+   char *x;
+   if (PL_is_atom(a)) {
+      return PL_get_chars(a,&x,CVT_ATOM | REP_UTF8) 
+          && (*pv=(jl_value_t *)jl_symbol(x), TRUE);
+   }
+   // FIXME I don't know how to construct a jl_expr...
+   return FALSE;
+}
+
+static int get_array(term_t vals, int n, jl_value_t **pv) {
+   jl_value_t *array_type = jl_apply_array_type((jl_value_t *)jl_float64_type, 1); // ndims = 1
+   jl_array_t *x          = jl_alloc_array_1d(array_type, n); // also array_2d...
+   return get_list_doubles(vals, n, (double *)jl_array_data(x))
+       && (*pv = (jl_value_t *)x, TRUE);
+}
+/* double *existingArray = (double*)malloc(sizeof(double)*10); */
+/* jl_array_t *x = jl_ptr_to_array_1d(array_type, existingArray, 10, 0); */
 
 static int term_jval(term_t t, jl_value_t **pv) {
    switch (PL_term_type(t)) {
@@ -145,16 +271,17 @@ static int term_jval(term_t t, jl_value_t **pv) {
       }
       case PL_TERM: {
          atom_t name;
-         int    rc, arity;
-         const char  *type;
-
-         if (PL_get_name_arity(t,&name,&arity)
-             && arity==1 && !strcmp(":", PL_atom_chars(name))) {
+         int    arity;
+         if (!PL_get_name_arity(t,&name,&arity)) return FALSE;
+         if (arity==1 && !strcmp(":", PL_atom_chars(name))) {
             term_t a=PL_new_term_ref();
-            char *x;
-            return PL_get_arg(1,t,a)
-                && PL_get_chars(a,&x,CVT_ATOM | REP_UTF8) // return type_error(a1,"atom");
-                && (*pv=(jl_value_t *)jl_symbol(x), TRUE);
+            return PL_get_arg(1,t,a) && get_expr(a,pv);
+         } else if (arity==2 && !strcmp("arr", PL_atom_chars(name))) {
+            term_t vals=PL_new_term_ref(), len=PL_new_term_ref();
+            int n;
+            return PL_get_arg(1,t,len) && PL_get_arg(2,t,vals) 
+                && PL_get_integer(len, &n)
+                && get_array(vals,n,pv);
          }
       }
    }
@@ -178,9 +305,6 @@ static int check() {
    }
 }
 
-/* foreign_t pjl_open() { return TRUE; } */
-/* foreign_t pjl_close() { return TRUE; } */
-
 foreign_t pjl_exec(term_t expr) {
    char *str;
    jl_value_t *jval;
@@ -194,6 +318,12 @@ foreign_t pjl_eval(term_t expr, term_t result) {
    return term_to_utf8_string(expr, &str)
        && (jval=jl_eval_string(str), check())
        && jval_term(jval, result);
+}
+
+static int terms_jvals(int n, term_t *ts, jl_value_t **jvs) {
+   int i, rc;
+   for (i=0, rc=TRUE; rc && i<n; i++) rc=term_jval(ts[i], &jvs[i]);
+   return rc;
 }
 
 foreign_t pjl_call1(term_t fn, term_t arg1, term_t res) {

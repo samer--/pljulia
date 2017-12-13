@@ -28,6 +28,8 @@ See examples/example.pl for more, including plotting.
 
 Handle more Julia types directly, tuples and arrays.
 
+Handle more node types in Julia syntax trees.
+
 Consider having `jl_array_t` structures floating around as Prolog BLOB
 atoms, assuming they can be protected from Julia's garbage collector.
 Should be more efficient than converting to/from Prolog lists when dealing
@@ -36,7 +38,6 @@ with numeric arrays.
 Handle more Julia syntax:
 
     ; to separate positional args from keyword args
-    => for building dictionaries
     {} for parametric types
 
 Consider allowing Julia to call back to Prolog.
