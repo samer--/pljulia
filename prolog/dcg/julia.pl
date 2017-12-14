@@ -172,6 +172,7 @@ expr(A:B:C) --> !, expr(colon(A,B,C)).
 expr(A:B) --> !, expr(colon(A,B)).
 expr(rdiv(A,B)) --> !, "//", args(A,B).
 expr(A=>B)--> !, "=>",args(A,B).
+expr(<<(A,B)) --> !, "∘", args(A,B). % function composition
 
 expr([])     --> !, "[]".
 expr([X|Xs]) --> !, "[", seqmap_with_sep(",",expr,[X|Xs]), "]".
