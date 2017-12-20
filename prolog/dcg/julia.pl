@@ -194,6 +194,9 @@ expr(#(A,B))     --> !, arglist([A,B]).
 expr(#(A,B,C))   --> !, arglist([A,B,C]).
 expr(#(A,B,C,D)) --> !, arglist([A,B,C,D]).
 
+expr(int64(S,L))   --> !, "reshape(Int64[", flatten(S,L), "],reverse(", arglist(S), "))".
+expr(float64(S,L)) --> !, "reshape(Float64[", flatten(S,L), "],reverse(", arglist(S), "))".
+
 expr(arr($X))    --> !, { pl2jl_hook(X,L) }, expr(arr(L)).
 expr(arr(L))     --> !, { array_dims(L,D) }, array(D,L).
 expr(arr(D,L))   --> !, array(D,L).
@@ -214,6 +217,9 @@ pair_to_jl(K-V, KK=>V) :- atom(K) -> KK= :K; KK=K.
 % dimensions implicit in nested list representation
 array_dims([X|_],M) :- !, array_dims(X,N), M is N+1.
 array_dims(_,0).
+
+flatten([], X) --> expr(X).
+flatten([_|D], L) --> seqmap_with_sep(",", flatten(D), L).
 
 %% array(+Dims:natural, +Id:ml_eng, +Array)// is det.
 %
