@@ -172,6 +172,7 @@ install_t install() {
    printf("Opening Julia...\n");
    jl_init();
    PL_on_halt(pjl_on_halt, 0);
+   jl_eval_string("Base.load_juliarc()");
 }
 
 /* utility function to extract UTF-8 encoded character array from
