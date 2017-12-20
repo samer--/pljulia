@@ -1,5 +1,5 @@
 name(pljulia).
-version('0.0.4').
+version('0.0.5').
 author('Samer Abdallah','samer.abdallah.00@gmail.com').
 title('Embedded Julia for SWI Prolog').
 keywords([julia,numerics]).
