@@ -27,11 +27,13 @@
    The type =|val|= denotes values that can be exchanged with Julia by
    direct conversion, rather than via strings. It is a union:
    ==
-   val == integer | float | string | bool | symbol | void
+   val == integer | float | string | bool | symbol | void | array_int64(_) | array_float64(_)
 
    bool   ---> true; false.
    symbol ---> :atom.
    void   ---> nothing.
+   array_int64(D)   ---> int64(shape(D), nested(D,integer)).
+   array_float64(D) ---> float64(shape(D), nested(D,float)).
    ==
    These types are mapped to and from Julia types as follows:
    ==
@@ -42,6 +44,13 @@
    Bool    <--> bool
    Void    <--> void
    ==
+   A D-dimensional arrays is represented using a shape(D), which is list of
+   exactly D integers, in REVERSE ORDER from the Julia form, and a D-level nested
+   list containing the values, where the first dimension is the length of the outer
+   list, the second dimension is the length of each 1st level nested list, and so on.
+
+   These arrays can be passed to jl_call/N, returned from jl_eval, and also
+   passed to the Julia DCG via the higher-level term level evaluators/executors.
 */
 
 :- use_foreign_library(foreign(julia4pl)).

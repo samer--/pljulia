@@ -98,7 +98,9 @@
 
    ==
    arr(Lists)         % multidimensional array from nested lists.
-   arr(Lists,Dims)    % multidimensional array from nested lists.
+   arr(Dims,Lists)    % multidimensional array from nested lists.
+   int64(Dims,Lists)  % multidimensional array of Int64
+   float64(Dims,Lists)% multidimensional array of Int64
    ==
 
    Things to bypass default formatting

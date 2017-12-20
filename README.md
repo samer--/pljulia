@@ -21,16 +21,19 @@ Then do
     ?- ?cumsum(rand(4,4)).
     ?- X <? 6*7.
     ?- "hello world"[1:2:end] ?> X.
+    ?- X <? rand(3,4,5), ?X.
 
 See examples/example.pl for more, including plotting.
 
 ## TODO
 
-Handle more Julia types directly, tuples and arrays.
+Handle more Julia types directly: tuples and base types
 
 Handle more node types in Julia syntax trees.
 
 Add `jl_map/2`, like `jl_call/N` but mapped over lists.
+
+Add workspace variable allocation like in plml?
 
 Consider having `jl_array_t` structures floating around as Prolog BLOB
 atoms, assuming they can be protected from Julia's garbage collector.
