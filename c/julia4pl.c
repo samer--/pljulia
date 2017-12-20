@@ -19,11 +19,25 @@
 
 static functor_t colon_1;
 
-static int unify_list_ints(term_t list, int64_t *x, int n)
+static int unify_reversed_list_sizes(term_t list, size_t *x, int n)
 {
   list=PL_copy_term_ref(list);
 
-  for (int i=0; i<n; i++) {
+  for (int i=n-1; i>=0; i--) {
+    term_t head=PL_new_term_ref();
+    term_t tail=PL_new_term_ref();
+    if (!PL_unify_list(list,head,tail)) PL_fail;
+    if (!PL_unify_integer(head,x[i])) PL_fail;
+    list=tail;
+  }
+  return PL_unify_nil(list);
+}
+
+static int unify_list_ints(term_t list, int64_t *x, size_t n)
+{
+  list=PL_copy_term_ref(list);
+
+  for (size_t i=0; i<n; i++) {
     term_t head=PL_new_term_ref();
     term_t tail=PL_new_term_ref();
     if (!PL_unify_list(list,head,tail)) PL_fail;
@@ -33,11 +47,11 @@ static int unify_list_ints(term_t list, int64_t *x, int n)
   return PL_unify_nil(list);
 }
 
-static int unify_list_doubles(term_t list, double *x, int n)
+static int unify_list_doubles(term_t list, double *x, size_t n)
 {
   list=PL_copy_term_ref(list);
 
-  for (int i=0; i<n; i++) {
+  for (size_t i=0; i<n; i++) {
     term_t head=PL_new_term_ref();
     term_t tail=PL_new_term_ref();
     if (!PL_unify_list(list,head,tail)) PL_fail;
@@ -48,14 +62,14 @@ static int unify_list_doubles(term_t list, double *x, int n)
 }
 
 // read list of integers from term and write to int array
-int get_list_integers(term_t list, long *len, int64_t *vals)
+int get_list_integers(term_t list,  int64_t maxlen, int64_t *len, int64_t *vals)
 {
   term_t  head=PL_new_term_ref();
-  long    n;
+  int64_t    n;
 
   // copy term ref so as not to modify original
   list=PL_copy_term_ref(list);
-  for (n=0;PL_get_list(list,head,list);n++) {
+  for (n=0;n<maxlen && PL_get_list(list,head,list);n++) {
       if (!PL_get_int64(head,&vals[n])) return FALSE;
   }
   if (!PL_get_nil(list)) return FALSE;
@@ -64,10 +78,10 @@ int get_list_integers(term_t list, long *len, int64_t *vals)
 }
 
 // read list of floats from term and write to double array
-int get_list_doubles(term_t list, long len, double *vals)
+int get_list_doubles(term_t list, int64_t len, double *vals)
 {
   term_t  head=PL_new_term_ref();
-  long    n;
+  int64_t    n;
 
   // copy term ref so as not to modify original
   list=PL_copy_term_ref(list);
@@ -76,6 +90,62 @@ int get_list_doubles(term_t list, long len, double *vals)
   }
   if (!PL_get_nil(list)) return FALSE;
   return TRUE;
+}
+
+// ---------------------------------------------------------------------------
+
+typedef int array_getter_t(term_t, int64_t, void **);
+typedef int array_unifier_t(term_t, size_t, void **);
+
+static int get_nested(array_getter_t *getter, term_t list, int64_t ndims, int64_t *dims, void **pp) {
+   if (ndims==1) return getter(list, *dims, pp);
+   else {
+      term_t  head=PL_new_term_ref();
+      int64_t i, ndims1=ndims-1, len=dims[ndims1];
+
+      list=PL_copy_term_ref(list);
+      for (i=0; i<len && PL_get_list(list,head,list); i++) {
+         if (!get_nested(getter, head, ndims1, dims, pp)) return FALSE;
+      }
+      return PL_get_nil(list);
+   }
+}
+
+static int unify_nested(array_unifier_t *unifier, term_t list, int ndims, size_t *dims, void **pp) {
+   if (ndims==1) return unifier(list, *dims, pp);
+   else {
+      size_t i, ndims1=ndims-1, len=dims[ndims1];
+
+      list=PL_copy_term_ref(list);
+      for (i=0; i<len; i++) {
+         term_t head=PL_new_term_ref(), tail=PL_new_term_ref();
+         if (!PL_unify_list(list, head, tail)) PL_fail;
+         if (!unify_nested(unifier, head, ndims1, dims, pp)) PL_fail;
+         list=tail;
+      }
+      return PL_unify_nil(list);
+   }
+}
+
+static int int64_getter(term_t vals, int64_t n, void **pp) {
+   int64_t m;
+   return get_list_integers(vals, n, &m, (int64_t *)*pp)
+       && (*pp += n*sizeof(int64_t), TRUE);
+}
+
+static int float64_getter(term_t vals, int64_t n, void **pp) {
+   return get_list_doubles(vals, n, (double *)*pp)
+       && (*pp += n*sizeof(double), TRUE);
+}
+
+static int int64_unifier(term_t vals, size_t n, void **pp) {
+   return unify_list_ints(vals, (int64_t *)*pp, n)
+       && (*pp += n*sizeof(int64_t), TRUE);
+}
+
+static int float64_unifier(term_t vals, size_t n, void **pp) {
+   return unify_list_doubles(vals, (double *)*pp, n)
+       && (*pp += n*sizeof(double), TRUE);
 }
 
 // ---------------------------------------------------------------------------
@@ -175,25 +245,23 @@ static int unify_expr(term_t t, jl_value_t *v) {
        && unify_tree(root, v);
 }
 
-static int unify_array(term_t t, jl_array_t *v) {
-   term_t l = PL_new_term_ref();
-   int rc, n = jl_array_len(v);
-   int ndims = jl_array_ndims(v);
+static int unify_md_array(term_t t, jl_array_t *v) {
+   term_t l = PL_new_term_ref(), shape=PL_new_term_ref();
    jl_datatype_t *et=(jl_datatype_t *)jl_array_eltype((jl_value_t *)v);
+   array_unifier_t *unifier;
+   void *pdata = jl_array_data(v);
+   int   ndims = jl_array_ndims(v);
+   size_t *dims = &(v->nrows);
+   char *fname;
 
-   if (ndims!=1) return result_error("array", "multidimensional");
-   if      (et==jl_float64_type) rc = unify_list_doubles(l, (double *)jl_array_data(v), n);
-   else if (et==jl_int64_type)   rc = unify_list_ints(l, (int64_t *)jl_array_data(v), n);
-   else return result_error("array", jl_symbol_name(et->name->name));
-   return PL_unify_term(t, PL_FUNCTOR_CHARS, "arr", 2, PL_INT, n, PL_TERM, l);
-   // FIXME check shape!
-   // alternatively, unify as one term with n args?
+   if      (et==jl_float64_type) { unifier = float64_unifier; fname = "float64"; }
+   else if (et==jl_int64_type)   { unifier = int64_unifier; fname = "int64"; }
+   else    return result_error("array", jl_symbol_name(et->name->name));
+
+   return unify_reversed_list_sizes(shape, dims, ndims)
+       && unify_nested(unifier, l, ndims, dims, &pdata)
+       && PL_unify_term(t, PL_FUNCTOR_CHARS, fname, 2, PL_TERM, shape, PL_TERM, l);
 }
-/* size_t size0 = jl_array_dim(x,0); */
-/* size_t size1 = jl_array_dim(x,1); */
-/* for(size_t i=0; i<size1; i++) */
-/*     for(size_t j=0; j<size0; j++) */
-/*         p[j + size0*i] = i + j; */
 
 static int jval_term(jl_value_t *v, term_t t) {
    jl_datatype_t *dt = (jl_datatype_t *)jl_typeof(v);
@@ -205,7 +273,7 @@ static int jval_term(jl_value_t *v, term_t t) {
    else if (jl_is_bool(v))       rc = PL_unify_atom_chars(t, jl_unbox_bool(v) ? "true" : "false");
    else if (jl_is_symbol(v))     rc = PL_unify_term(t, PL_FUNCTOR_CHARS, ":", 1, PL_UTF8_CHARS, sym_name(v));
    else if (jl_is_nothing(v))    rc = PL_unify_atom_chars(t, "nothing");
-   else if (jl_is_array(v))      rc = unify_array(t, (jl_array_t *)v);
+   else if (jl_is_array(v))      rc = unify_md_array(t, (jl_array_t *)v);
    else if (jl_is_expr(v))       rc = unify_expr(t, v);
    else rc = result_error("result", jl_symbol_name(((jl_datatype_t *)jl_typeof(v))->name->name));
    return rc;
@@ -221,11 +289,38 @@ static int get_expr(term_t a, jl_value_t **pv) {
    return FALSE;
 }
 
-static int get_array(term_t vals, int n, jl_value_t **pv) {
+static int get_array(int n, term_t vals, jl_value_t **pv) {
    jl_value_t *array_type = jl_apply_array_type((jl_value_t *)jl_float64_type, 1); // ndims = 1
    jl_array_t *x          = jl_alloc_array_1d(array_type, n); // also array_2d...
    return get_list_doubles(vals, n, (double *)jl_array_data(x))
        && (*pv = (jl_value_t *)x, TRUE);
+}
+
+static int get_md_array(jl_datatype_t *jl_type, array_getter_t *getter,
+                        int64_t ndims, int64_t *dims, term_t vals, jl_value_t **pv) {
+   int64_t n, i;
+   jl_value_t *array_type = jl_apply_array_type((jl_value_t *)jl_type, ndims);
+   jl_array_t *x;
+   void *pdata;
+   switch (ndims) {
+      case 1: x = jl_alloc_array_1d(array_type, dims[0]); break;
+      case 2: x = jl_alloc_array_2d(array_type, dims[0], dims[1]); break;
+      case 3: x = jl_alloc_array_3d(array_type, dims[0], dims[1], dims[2]); break;
+   }
+   pdata = jl_array_data(x);
+   return get_nested(getter, vals, ndims, dims, &pdata)
+       && (*pv = (jl_value_t *)x, TRUE);
+}
+
+static void reverse(int64_t n, int64_t *x, int64_t *y) { for (int i=n; i>0; i--) y[i-1] = x[n-i]; }
+
+static int term_to_array(jl_datatype_t *type, array_getter_t *getter, term_t t, jl_value_t **pv) {
+   term_t vals=PL_new_term_ref(), shape=PL_new_term_ref();
+   int64_t revdims[3], dims[3], ndims;
+   return PL_get_arg(1,t,shape) && PL_get_arg(2,t,vals)
+       && get_list_integers(shape, 3, &ndims, revdims)
+       && (reverse(ndims, revdims, dims), TRUE)
+       && get_md_array(type, getter, ndims, dims, vals, pv);
 }
 
 static int term_jval(term_t t, jl_value_t **pv) {
@@ -249,21 +344,36 @@ static int term_jval(term_t t, jl_value_t **pv) {
          if (!strcmp(x,"true"))       { *pv = jl_true; return TRUE; }
          else if (!strcmp(x,"false")) { *pv = jl_false; return TRUE; }
          else if (!strcmp(x,"nothing")) { *pv = jl_nothing; return TRUE; }
+         break;
       }
       case PL_TERM: {
-         atom_t name;
+         atom_t head;
          int    arity;
-         if (!PL_get_name_arity(t,&name,&arity)) return FALSE;
-         if (arity==1 && !strcmp(":", PL_atom_chars(name))) {
-            term_t a=PL_new_term_ref();
-            return PL_get_arg(1,t,a) && get_expr(a,pv);
-         } else if (arity==2 && !strcmp("arr", PL_atom_chars(name))) {
-            term_t vals=PL_new_term_ref(), len=PL_new_term_ref();
-            int n;
-            return PL_get_arg(1,t,len) && PL_get_arg(2,t,vals) 
-                && PL_get_integer(len, &n)
-                && get_array(vals,n,pv);
+         const char *name;
+         if (!PL_get_name_arity(t,&head,&arity)) return FALSE;
+         name = PL_atom_chars(head);
+         switch (arity) {
+            case 1:
+               if (!strcmp(":", name)) {
+                  term_t a=PL_new_term_ref();
+                  return PL_get_arg(1,t,a) && get_expr(a,pv);
+               }
+               break;
+            case 2:
+               if (!strcmp("arr", name)) {
+                  term_t vals=PL_new_term_ref(), len=PL_new_term_ref();
+                  int n;
+                  return PL_get_arg(1,t,len) && PL_get_arg(2,t,vals)
+                      && PL_get_integer(len, &n)
+                      && get_array(n,vals,pv);
+               } else if (!strcmp("int64", name)) {
+                  return term_to_array(jl_int64_type, int64_getter, t, pv);
+               } else if (!strcmp("float64", name)) {
+                  return term_to_array(jl_float64_type, float64_getter, t, pv);
+               }
+               break;
          }
+         break;
       }
    }
    return type_error(t, "integer | float | string | bool | symbol | void");
