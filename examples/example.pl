@@ -1,10 +1,11 @@
 /*
    pljulia examples. Requires Plots.jl package
-   and some graphics backends, such as PlotlyJS.pl
-   These are installed in Julia with
+   and some graphics backends, such as PlotlyJS.pl (pretty)
+   or GR.jl (fast).  These are installed in Julia with
 
       Pkg.add("Plots")
       Pkg.add("PlotlyJS")
+      Pkg.add("GR")
 */
 :- use_module(library(julia)).
 

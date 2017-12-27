@@ -18,6 +18,7 @@
 #include <julia.h>
 
 static functor_t colon_1;
+static atom_t hash;
 
 static int unify_reversed_list_sizes(term_t list, size_t *x, int n)
 {
@@ -169,6 +170,7 @@ install_t install() {
    PL_register_foreign("jl_call",   4, (void *)pjl_call2, 0);
 
    colon_1 = PL_new_functor(PL_new_atom(":"),1);
+   hash = PL_new_atom("#");
    printf("Opening Julia...\n");
    jl_init();
    PL_on_halt(pjl_on_halt, 0);
@@ -246,6 +248,19 @@ static int unify_expr(term_t t, jl_value_t *v) {
        && unify_tree(root, v);
 }
 
+static int jval_term(jl_value_t *, term_t);
+
+static int unify_tuple(term_t t, jl_datatype_t *type, jl_value_t *v) {
+   int arity = jl_nparams(type), rc, i;
+   functor_t hash_n = PL_new_functor(hash, arity);
+   rc = PL_unify_functor(t, hash_n);
+   for (i=0; rc && i<arity; i++) {
+      term_t ai = PL_new_term_ref();
+      rc = PL_unify_arg(i+1, t, ai) && jval_term(jl_get_nth_field(v,i), ai);
+   }
+   return rc;
+}
+
 static int unify_md_array(term_t t, jl_array_t *v) {
    term_t l = PL_new_term_ref(), shape=PL_new_term_ref();
    jl_datatype_t *et=(jl_datatype_t *)jl_array_eltype((jl_value_t *)v);
@@ -275,6 +290,7 @@ static int jval_term(jl_value_t *v, term_t t) {
    else if (jl_is_symbol(v))     rc = PL_unify_term(t, PL_FUNCTOR_CHARS, ":", 1, PL_UTF8_CHARS, sym_name(v));
    else if (jl_is_nothing(v))    rc = PL_unify_atom_chars(t, "nothing");
    else if (jl_is_array(v))      rc = unify_md_array(t, (jl_array_t *)v);
+   else if (jl_is_tuple(v))      rc = unify_tuple(t, dt, v);
    else if (jl_is_expr(v))       rc = unify_expr(t, v);
    else rc = result_error("result", jl_symbol_name(((jl_datatype_t *)jl_typeof(v))->name->name));
    return rc;
@@ -324,6 +340,27 @@ static int term_to_array(jl_datatype_t *type, array_getter_t *getter, term_t t, 
        && get_md_array(type, getter, ndims, dims, vals, pv);
 }
 
+static int term_jval(term_t, jl_value_t **);
+
+static int term_tuple(term_t t, int arity, jl_value_t **pv) {
+   int rc=TRUE, i;
+   jl_value_t **args = calloc(arity, sizeof(jl_value_t *));
+   jl_value_t **types = calloc(arity, sizeof(jl_value_t *));
+   term_t ai = PL_new_term_ref();
+
+   for (i=0; rc && i<arity; i++) {
+      if (PL_get_arg(i+1, t, ai) && term_jval(ai, &args[i])) types[i] = jl_typeof(args[i]);
+      else rc=FALSE;
+   }
+   if (rc) {
+      jl_tupletype_t *tt = jl_apply_tuple_type_v(types, arity);
+      *pv = jl_new_structv(tt, args, arity);
+   }
+   // !!! free arrays here or give types to Julia GC?
+   free(args); free(types);
+   return rc;
+}
+
 static int term_jval(term_t t, jl_value_t **pv) {
    switch (PL_term_type(t)) {
       case PL_INTEGER: {
@@ -353,6 +390,7 @@ static int term_jval(term_t t, jl_value_t **pv) {
          const char *name;
          if (!PL_get_name_arity(t,&head,&arity)) return FALSE;
          name = PL_atom_chars(head);
+			if (!strcmp("#", name)) return term_tuple(t, arity, pv);
          switch (arity) {
             case 1:
                if (!strcmp(":", name)) {

@@ -22,12 +22,14 @@ Then do
     ?- X <? 6*7.
     ?- "hello world"[1:2:end] ?> X.
     ?- X <? rand(3,4,5), ?X.
+    ?- X <? #(1,"a",2.2,[1,2,3]).
+    ?- maplist(jl_call("println"), [1,3.14,#("a",2.2,float64([3],[4,5,6]))], _).
 
 See examples/example.pl for more, including plotting.
 
 ## TODO
 
-Handle more Julia types directly: tuples and base types
+Handle more Julia types directly: more base types? Arrays of more types?
 
 Handle more node types in Julia syntax trees.
 
