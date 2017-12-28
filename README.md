@@ -29,13 +29,15 @@ See examples/example.pl for more, including plotting.
 
 ## TODO
 
-Handle more Julia types directly: more base types? Arrays of more types?
-
-Handle more node types in Julia syntax trees.
-
 Add `jl_map/2`, like `jl_call/N` but mapped over lists.
 
 Add workspace variable allocation like in plml?
+
+Allow callbacks from Julia to Prolog
+
+Handle more Julia types directly: more base types? Arrays of more types?
+
+Handle more node types in Julia syntax trees.
 
 Consider having `jl_array_t` structures floating around as Prolog BLOB
 atoms, assuming they can be protected from Julia's garbage collector.
