@@ -261,7 +261,7 @@ static int jval_term(jl_value_t *, term_t);
 static int unify_tuple(term_t t, jl_datatype_t *type, jl_value_t *v) {
    int arity = jl_nparams(type), rc, i;
    functor_t hash_n = PL_new_functor(hash, arity);
-   rc = PL_unify_functor(t, hash_n);
+   rc = PL_unify_compound(t, hash_n);
    for (i=0; rc && i<arity; i++) {
       term_t ai = PL_new_term_ref();
       rc = PL_unify_arg(i+1, t, ai) && jval_term(jl_get_nth_field(v,i), ai);

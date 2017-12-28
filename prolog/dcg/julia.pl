@@ -191,7 +191,8 @@ expr([](Is,X))   --> !, expr(X), "[", clist(Is), "]".
 expr(A@B)        --> !, expr(A), arglist(B).
 expr(A.@B)       --> !, expr(.A), arglist(B).
 expr(.A)         --> !, "(", expr(A), ")", ".".
-expr(#(A))       --> !, arglist([A]).
+expr(#())        --> !, "()".
+expr(#(A))       --> !, "(", expr(A), ",)".
 expr(#(A,B))     --> !, arglist([A,B]).
 expr(#(A,B,C))   --> !, arglist([A,B,C]).
 expr(#(A,B,C,D)) --> !, arglist([A,B,C,D]).

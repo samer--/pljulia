@@ -15,6 +15,7 @@
    ,  op(900,fx,!)
    ,  op(900,xfy,<?)
    ,  op(900,yfx,?>)
+   ,  jl/4 % quasiquations
    ]).
 
 /** <module> Embedded Julia
@@ -29,13 +30,17 @@
    The type =|val|= denotes values that can be exchanged with Julia by
    direct conversion, rather than via strings. It is a union:
    ==
-   val == integer | float | string | bool | symbol | void | array_int64(_) | array_float64(_)
+   val == integer | float | string | bool | symbol | void | arr_int64(_) | arr_float64(_)
+        | tuple() | tuple(A) | tuple(A,B) | tuple(A,B,C) | ...
 
    bool   ---> true; false.
    symbol ---> :atom.
    void   ---> nothing.
-   array_int64(D)   ---> int64(shape(D), nested(D,integer)).
-   array_float64(D) ---> float64(shape(D), nested(D,float)).
+   arr_int64(D)   ---> int64(shape(D), nested(D,integer)).
+   arr_float64(D) ---> float64(shape(D), nested(D,float)).
+   tuple() ---> #()
+   tuple(A) ---> #(A)
+   tuple(A,B) ---> #(A,B)
    ==
    These types are mapped to and from Julia types as follows:
    ==
@@ -45,6 +50,7 @@
    Symbol  <--> symbol
    Bool    <--> bool
    Void    <--> void
+   Tuple{...} <--> tuple(...)
    ==
    A D-dimensional arrays is represented using a shape(D), which is list of
    exactly D integers, in REVERSE ORDER from the Julia form, and a D-level nested
