@@ -89,8 +89,15 @@ int get_list_doubles(term_t list, int64_t len, double *vals)
   for (n=0;n<len && PL_get_list(list,head,list);n++) {
       if (!PL_get_float(head,&vals[n])) return FALSE;
   }
-  if (!PL_get_nil(list)) return FALSE;
-  return TRUE;
+  return PL_get_nil(list);
+}
+
+int get_list_terms(term_t list, int64_t len, term_t *terms)
+{
+  int64_t    i;
+  list=PL_copy_term_ref(list);
+  for (i=0;i<len && PL_get_list(list,terms[i],list);i++);
+  return PL_get_nil(list);
 }
 
 // ---------------------------------------------------------------------------
@@ -155,8 +162,9 @@ install_t install();
 
 foreign_t pjl_exec(term_t expr);
 foreign_t pjl_eval(term_t expr, term_t res);
-foreign_t pjl_call1(term_t expr, term_t arg1, term_t res);
-foreign_t pjl_call2(term_t expr, term_t arg1, term_t arg2, term_t res);
+foreign_t pjl_apply(term_t expr, term_t arg1, term_t arg2, term_t res);
+foreign_t pjl_apply(term_t expr, term_t n, term_t args, term_t res);
+foreign_t pjl_apply_(term_t expr, term_t n, term_t args);
 
 static int pjl_on_halt(int rc, void *p) {
    jl_atexit_hook(rc);
@@ -166,8 +174,8 @@ static int pjl_on_halt(int rc, void *p) {
 install_t install() {
    PL_register_foreign("jl_exec",   1, (void *)pjl_exec, 0);
    PL_register_foreign("jl_eval",   2, (void *)pjl_eval, 0);
-   PL_register_foreign("jl_call",   3, (void *)pjl_call1, 0);
-   PL_register_foreign("jl_call",   4, (void *)pjl_call2, 0);
+   PL_register_foreign("jl_apply",  4, (void *)pjl_apply, 0);
+   PL_register_foreign("jl_apply_", 3, (void *)pjl_apply_, 0);
 
    colon_1 = PL_new_functor(PL_new_atom(":"),1);
    hash = PL_new_atom("#");
@@ -450,29 +458,37 @@ foreign_t pjl_eval(term_t expr, term_t result) {
        && jval_term(jval, result);
 }
 
-static int terms_jvals(int n, term_t *ts, jl_value_t **jvs) {
-   int i, rc;
-   for (i=0, rc=TRUE; rc && i<n; i++) rc=term_jval(ts[i], &jvs[i]);
+static int apply(jl_value_t *jfn, int N, term_t list, jl_value_t **pval) {
+   jl_value_t **jargs = calloc(N, sizeof(jl_value_t *));
+   term_t head = PL_new_term_ref();
+   int i, rc=(jargs != NULL);
+
+   list=PL_copy_term_ref(list);
+   for (i=0;rc && i<N && PL_get_list(list,head,list);i++)
+      rc = term_jval(head, &jargs[i]);
+   rc = rc && PL_get_nil(list)
+           && (*pval=jl_call(jfn, jargs, N), check());
+   free(jargs);
    return rc;
 }
 
-foreign_t pjl_call1(term_t fn, term_t arg1, term_t res) {
+static int apply_jval(term_t fn, term_t n, term_t args, jl_value_t **pval) {
    char *str;
-   jl_value_t *jfn, *jarg1, *jval;
+   int N;
+   jl_value_t *jfn;
    return term_to_utf8_string(fn, &str)
        && (jfn=jl_eval_string(str), check())
-       && term_jval(arg1, &jarg1)
-       && (jval=jl_call1(jfn, jarg1), check())
+       && PL_get_integer(n, &N)
+       && apply(jfn, N, args, pval);
+}
+
+foreign_t pjl_apply(term_t fn, term_t n, term_t args, term_t res) {
+   jl_value_t *jval;
+   return apply_jval(fn, n, args, &jval)
        && jval_term(jval, res);
 }
 
-foreign_t pjl_call2(term_t fn, term_t arg1, term_t arg2, term_t res) {
-   char *str;
-   jl_value_t *jfn, *jarg1, *jarg2, *jval;
-   return term_to_utf8_string(fn, &str)
-       && (jfn=jl_eval_string(str), check())
-       && term_jval(arg1, &jarg1)
-       && term_jval(arg2, &jarg2)
-       && (jval=jl_call2(jfn, jarg1, jarg2), check())
-       && jval_term(jval, res);
+foreign_t pjl_apply_(term_t fn, term_t n, term_t args) {
+   jl_value_t *jval;
+   return apply_jval(fn, n, args, &jval);
 }

@@ -6,8 +6,10 @@
 :- module(julia, [
       jl_exec/1
    ,  jl_eval/2
-   ,  jl_call/3
-   ,  jl_call/4
+   ,  jl_call/3,  jl_call_/2
+   ,  jl_call/4,  jl_call_/3
+   ,  jl_call/5,  jl_call_/4
+   ,  jl_apply/3, jl_apply_/2
    ,  (!)/1, (?)/1, (<?)/2, (?>)/2
    ,  op(900,fx,?)
    ,  op(900,fx,!)
@@ -74,6 +76,18 @@
 %  Evaluates F to get a function and applies it to given arguments.
 %  The arguments are converted to Julia values directly in C code, which
 %  should be faster than conversion via DCG formatting and parsing in Julia.
+jl_call(F,X,R) :- jl_apply(F,1,[X],R).
+jl_call(F,X,Y,R) :- jl_apply(F,2,[X,Y],R).
+jl_call(F,X,Y,Z,R) :- jl_apply(F,3,[X,Y,Z],R).
+
+jl_call_(F,X) :- jl_apply_(F,1,[X]).
+jl_call_(F,X,Y) :- jl_apply_(F,2,[X,Y]).
+jl_call_(F,X,Y,Z) :- jl_apply_(F,3,[X,Y,Z]).
+
+jl_apply(F,Args,R) :- length(Args,N), jl_apply(F,N,Args,R).
+jl_apply_(F,Args) :- length(Args,N), jl_apply_(F,N,Args).
+
+
 
 %! !(+E:expr) is det.
 %  Execute Julia expression E using jl_exec/1. No output is printed.
