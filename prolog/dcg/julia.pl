@@ -197,6 +197,8 @@ expr(#(A,B))     --> !, arglist([A,B]).
 expr(#(A,B,C))   --> !, arglist([A,B,C]).
 expr(#(A,B,C,D)) --> !, arglist([A,B,C,D]).
 
+expr(int64([_],L))   --> !, "Int64[", clist(L), "]".
+expr(float64([_],L)) --> !, "Float64[", clist(L), "]".
 expr(int64(S,L))   --> !, "reshape(Int64[", flatten(S,L), "],reverse(", arglist(S), "))".
 expr(float64(S,L)) --> !, "reshape(Float64[", flatten(S,L), "],reverse(", arglist(S), "))".
 
