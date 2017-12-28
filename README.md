@@ -31,11 +31,9 @@ See examples/example.pl for more, including plotting.
 
 Add `jl_map/2`, like `jl_call/N` but mapped over lists.
 
-Add workspace variable allocation like in plml?
-
 Allow callbacks from Julia to Prolog
 
-Handle more Julia types directly: more base types? Arrays of more types?
+Handle more Julia types directly: more base types? Arrays of more types? BitArray?
 
 Handle more node types in Julia syntax trees.
 
