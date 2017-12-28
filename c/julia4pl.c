@@ -102,6 +102,34 @@ int get_list_terms(term_t list, int64_t len, term_t *terms)
 
 // ---------------------------------------------------------------------------
 
+// extract a blob from atom
+static void atom_to_blob(atom_t a, void **pdata, PL_blob_t **ptype) {
+}
+
+static PL_blob_t ws_blob;
+static int ws_count=0;
+
+// structure for keeping track of workspace variables
+struct wsvar {
+  char name[8]; // designed for short machine generated names
+};
+
+
+// Functions for WS variable atom type
+int ws_release(atom_t a) {
+  size_t    len;
+  PL_blob_t *type;
+  char cmd[24];
+
+  struct wsvar *x=PL_blob_data(a, &len, &type);
+  if (type!=&ws_blob) return FALSE;
+  sprintf(cmd, "%s=nothing", x->name);
+  jl_eval_string(cmd);
+  return TRUE;
+}
+
+// ---------------------------------------------------------------------------
+
 typedef int array_getter_t(term_t, int64_t, void **);
 typedef int array_unifier_t(term_t, size_t, void **);
 
@@ -165,6 +193,8 @@ foreign_t pjl_eval(term_t expr, term_t res);
 foreign_t pjl_apply(term_t expr, term_t arg1, term_t arg2, term_t res);
 foreign_t pjl_apply(term_t expr, term_t n, term_t args, term_t res);
 foreign_t pjl_apply_(term_t expr, term_t n, term_t args);
+foreign_t pjl_ws_alloc(term_t, term_t);
+foreign_t pjl_ws_name(term_t, term_t);
 
 static int pjl_on_halt(int rc, void *p) {
    jl_atexit_hook(rc);
@@ -176,6 +206,16 @@ install_t install() {
    PL_register_foreign("jl_eval",   2, (void *)pjl_eval, 0);
    PL_register_foreign("jl_apply",  4, (void *)pjl_apply, 0);
    PL_register_foreign("jl_apply_", 3, (void *)pjl_apply_, 0);
+   PL_register_foreign("jl_ws_alloc", 2, (void *)pjl_ws_alloc, 0);
+   PL_register_foreign("jl_ws_name", 2, (void *)pjl_ws_name, 0);
+
+   ws_blob.magic = PL_BLOB_MAGIC;
+   ws_blob.flags = PL_BLOB_UNIQUE;
+   ws_blob.name = (char *)"ws";
+   ws_blob.acquire = 0;
+   ws_blob.release = ws_release;
+   ws_blob.compare = 0;
+   ws_blob.write   = 0;
 
    colon_1 = PL_new_functor(PL_new_atom(":"),1);
    hash = PL_new_atom("#");
@@ -225,14 +265,14 @@ static int unify_tree(term_t t, jl_value_t *v) {
    int rc;
 
    // FIXME this needs to handle literal values, QuoteNode and possibly other Julia types...
-   if (dt==jl_float64_type)    rc = PL_unify_float(t, jl_unbox_float64(v));
-   else if (dt==jl_int64_type) rc = PL_unify_integer(t, jl_unbox_int64(v));
-   else if (jl_is_string(v))  rc = PL_unify_chars(t, PL_STRING | REP_UTF8, -1, jl_string_ptr(v));
-   else if (jl_is_bool(v))    rc = PL_unify_atom_chars(t, jl_unbox_bool(v) ? "true" : "false");
-   else if (jl_is_nothing(v)) rc = PL_unify_atom_chars(t, "nothing");
-   else if (jl_is_symbol(v))  rc = PL_unify_chars(t, PL_ATOM | REP_UTF8, -1, sym_name(v));
-   else if (jl_is_quotenode(v)) rc = result_error("expression", "<QuoteNode>");
-   else if (jl_is_expr(v)) {
+   if      (dt==jl_float64_type) rc = PL_unify_float(t, jl_unbox_float64(v));
+   else if (dt==jl_int64_type)   rc = PL_unify_integer(t, jl_unbox_int64(v));
+   else if (dt==jl_string_type)  rc = PL_unify_chars(t, PL_STRING | REP_UTF8, -1, jl_string_ptr(v));
+   else if (dt==jl_bool_type)    rc = PL_unify_atom_chars(t, jl_unbox_bool(v) ? "true" : "false");
+   else if (dt==jl_sym_type)     rc = PL_unify_chars(t, PL_ATOM | REP_UTF8, -1, sym_name(v));
+   else if (jl_is_nothing(v))    rc = PL_unify_atom_chars(t, "nothing");
+   else if (dt==jl_quotenode_type) rc = result_error("expression", "<QuoteNode>");
+   else if (dt==jl_expr_type) {
       int  i, n = jl_expr_nargs(v);
       char *name = jl_symbol_name(((jl_expr_t *)v)->head);
       term_t a = PL_new_term_refs(n);
@@ -293,13 +333,13 @@ static int jval_term(jl_value_t *v, term_t t) {
 
    if      (dt==jl_float64_type) rc = PL_unify_float(t, jl_unbox_float64(v));
    else if (dt==jl_int64_type)   rc = PL_unify_integer(t, jl_unbox_int64(v));
-   else if (jl_is_string(v))     rc = PL_unify_chars(t, PL_STRING | REP_UTF8, -1, jl_string_ptr(v));
-   else if (jl_is_bool(v))       rc = PL_unify_atom_chars(t, jl_unbox_bool(v) ? "true" : "false");
-   else if (jl_is_symbol(v))     rc = PL_unify_term(t, PL_FUNCTOR_CHARS, ":", 1, PL_UTF8_CHARS, sym_name(v));
+   else if (dt==jl_string_type)  rc = PL_unify_chars(t, PL_STRING | REP_UTF8, -1, jl_string_ptr(v));
+   else if (dt==jl_bool_type)    rc = PL_unify_atom_chars(t, jl_unbox_bool(v) ? "true" : "false");
+   else if (dt==jl_sym_type)     rc = PL_unify_term(t, PL_FUNCTOR_CHARS, ":", 1, PL_UTF8_CHARS, sym_name(v));
    else if (jl_is_nothing(v))    rc = PL_unify_atom_chars(t, "nothing");
-   else if (jl_is_array(v))      rc = unify_md_array(t, (jl_array_t *)v);
+   else if (jl_is_array_type(dt)) rc = unify_md_array(t, (jl_array_t *)v);
    else if (jl_is_tuple(v))      rc = unify_tuple(t, dt, v);
-   else if (jl_is_expr(v))       rc = unify_expr(t, v);
+   else if (dt==jl_expr_type)    rc = unify_expr(t, v);
    else rc = result_error("result", jl_symbol_name(((jl_datatype_t *)jl_typeof(v))->name->name));
    return rc;
 }
@@ -491,4 +531,21 @@ foreign_t pjl_apply(term_t fn, term_t n, term_t args, term_t res) {
 foreign_t pjl_apply_(term_t fn, term_t n, term_t args) {
    jl_value_t *jval;
    return apply_jval(fn, n, args, &jval);
+}
+
+foreign_t pjl_ws_alloc(term_t blob, term_t name) {
+   struct wsvar x;
+   snprintf(x.name, sizeof(x.name), "_%X", ws_count++);
+   return PL_unify_blob(blob,&x,sizeof(x),&ws_blob)
+       && PL_unify_atom_chars(name, x.name);
+}
+
+foreign_t pjl_ws_name(term_t blob, term_t name) {
+   PL_blob_t *type;
+   size_t     len;
+   struct wsvar *p;
+
+   return PL_get_blob(blob, (void **)&p, &len, &type)
+       && (type == &ws_blob)
+       && PL_unify_atom_chars(name, p->name);
 }

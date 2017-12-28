@@ -10,10 +10,11 @@
    ,  jl_call/4,  jl_call_/3
    ,  jl_call/5,  jl_call_/4
    ,  jl_apply/3, jl_apply_/2
-   ,  (!)/1, (?)/1, (<?)/2, (?>)/2
+   ,  (!)/1, (?)/1, (<?)/2, (?>)/2, (??)/2
    ,  op(900,fx,?)
    ,  op(900,fx,!)
    ,  op(900,xfy,<?)
+   ,  op(900,xfy,??)
    ,  op(900,yfx,?>)
    ]).
 
@@ -133,6 +134,20 @@ jl_apply_(F,Args) :- length(Args,N), jl_apply_(F,N,Args).
 %  Evalute Julia expression E and unify result with X. =|X <? E|= is the
 %  same as =|E ?> X|=, but may be more convenient for interactive use.
 <?(Result, Expr) :- Expr ?> Result.
+
+%! ??(-X:val, +E:expr) is det.
+%  Evalute Julia expression E as with (<?)/2, but instead of converting the
+%  result into a Prolog representation, store it in a freshly allocated Julia
+%  workspace variable and unify X with a term containing the name of the new
+%  variable. This can be used in subsequent Julia expressions, but it cannot
+%  be passed to jl_apply/4 and jl_apply_/3. When X goes out of scope, garbage
+%  collection on the Prolog side releases the value in the Julia workspace
+%  so that it becomes %  available for garbage collection on the Julia side.
+%  same as =|E ?> X|=, but may be more convenient for interactive use.
+??($(WS), Expr) :- jl_ws_alloc(WS,Name), !Name=Expr.
+
+dcg_julia:pl2jl_hook(WS,Name) :- current_blob(WS,ws), !, jl_ws_name(WS,Name).
+user:portray($WS) :- current_blob(WS,ws), !, jl_ws_name(WS,Name), format("ws<~w>",[Name]).
 
 prolog:message(error(julia_error,_)) --> ['A Julia exception was thrown.'].
 prolog:message(error(unsupported_julia_return_type(C,T),_)) -->
