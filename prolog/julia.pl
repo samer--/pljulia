@@ -73,6 +73,7 @@
 
 %! jl_call(+F:text, +Arg:val, -Result:val) is det.
 %! jl_call(+F:text, +Arg1:val, +Arg2:val, -Result:val) is det.
+%! jl_call(+F:text, +Arg1:val, +Arg2:val, +Arg3:val, -Result:val) is det.
 %  Evaluates F to get a function and applies it to given arguments.
 %  The arguments are converted to Julia values directly in C code, which
 %  should be faster than conversion via DCG formatting and parsing in Julia.
@@ -80,11 +81,23 @@ jl_call(F,X,R) :- jl_apply(F,1,[X],R).
 jl_call(F,X,Y,R) :- jl_apply(F,2,[X,Y],R).
 jl_call(F,X,Y,Z,R) :- jl_apply(F,3,[X,Y,Z],R).
 
+%! jl_call_(+F:text, +Arg:val) is det.
+%! jl_call_(+F:text, +Arg1:val, +Arg2:val) is det.
+%! jl_call_(+F:text, +Arg1:val, +Arg2:val, +Arg3:val) is det.
+%  Same as jl_call/3, jl_call/4 etc but ignoring the return value.
+%  This can be useful when the return value is not supported by pljulia.
 jl_call_(F,X) :- jl_apply_(F,1,[X]).
 jl_call_(F,X,Y) :- jl_apply_(F,2,[X,Y]).
 jl_call_(F,X,Y,Z) :- jl_apply_(F,3,[X,Y,Z]).
 
+%! jl_apply(+F:text, +Args:list(val), -Result:val) is det.
+%  Evaluates Julia expression F to a function and applies it to any number
+%  of arguments in Args, unifying the return value with Result.
 jl_apply(F,Args,R) :- length(Args,N), jl_apply(F,N,Args,R).
+
+%! jl_apply_(+F:text, +Args:list(val)) is det.
+%  Evaluates Julia expression F to a function and applies it to any number
+%  of arguments in Args and discarding the return value.
 jl_apply_(F,Args) :- length(Args,N), jl_apply_(F,N,Args).
 
 
