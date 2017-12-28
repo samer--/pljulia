@@ -15,7 +15,6 @@
    ,  op(900,fx,!)
    ,  op(900,xfy,<?)
    ,  op(900,yfx,?>)
-   ,  jl/4 % quasiquations
    ]).
 
 /** <module> Embedded Julia
