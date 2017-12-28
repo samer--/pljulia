@@ -38,7 +38,7 @@
       ]).
 
 
-:- multifile user:pl2jl_hook/2, pl2jl_hook/3.
+:- multifile dcg_julia:pl2jl_hook/2.
 
 /** <module> Julia DCG
 
@@ -131,7 +131,6 @@
 :- set_prolog_flag(double_quotes,codes).
 
 
-%% pl2jl_hook(+I:engine,+X:term,-Y:expr) is nondet.
 %% pl2jl_hook(+X:term,-Y:expr) is nondet.
 %  Clauses of pl2jl_hook/2 allow for extensions to the expression
 %  language such that =|V[$X] = V[Y]|= if =|pl2jl_hook(X,Y)|=.
@@ -194,8 +193,6 @@ expr(.A)         --> !, "(", expr(A), ")", ".".
 expr(#())        --> !, "()".
 expr(#(A))       --> !, "(", expr(A), ",)".
 expr(#(A,B))     --> !, arglist([A,B]).
-expr(#(A,B,C))   --> !, arglist([A,B,C]).
-expr(#(A,B,C,D)) --> !, arglist([A,B,C,D]).
 
 expr(int64([_],L))   --> !, "Int64[", clist(L), "]".
 expr(float64([_],L)) --> !, "Float64[", clist(L), "]".
@@ -213,7 +210,7 @@ expr(A) --> {string(A)}, !, qq(str(A)).
 expr(A) --> {atomic(A)}, !, atm(A).
 expr(F) --> {compound_name_arity(F,H,0)}, !, atm(H), "()".
 expr(A) --> {is_dict(A)}, !, {dict_pairs(A,_,Ps), maplist(pair_to_jl,Ps,Ps1)}, "Dict", arglist(Ps1).
-expr(F) --> {F=..[H|AX]}, atm(H), arglist(AX).
+expr(F) --> {F=..[H|AX]}, ({H='#'} -> []; atm(H)), arglist(AX).
 
 expr_with(Lambda,Y) --> {copy_term(Lambda,Y\\PY)}, expr(PY).
 pair_to_jl(K-V, KK=>V) :- atom(K) -> KK= :K; KK=K.
