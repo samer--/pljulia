@@ -142,8 +142,7 @@ jl_apply_(F,Args) :- length(Args,N), jl_apply_(F,N,Args).
 %  variable. This can be used in subsequent Julia expressions, but it cannot
 %  be passed to jl_apply/4 and jl_apply_/3. When X goes out of scope, garbage
 %  collection on the Prolog side releases the value in the Julia workspace
-%  so that it becomes %  available for garbage collection on the Julia side.
-%  same as =|E ?> X|=, but may be more convenient for interactive use.
+%  so that it becomes available for garbage collection on the Julia side.
 ??($(WS), Expr) :- jl_ws_alloc(WS,Name), !Name=Expr.
 
 dcg_julia:pl2jl_hook(WS,Name) :- current_blob(WS,ws), !, jl_ws_name(WS,Name).
