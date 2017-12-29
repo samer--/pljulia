@@ -139,7 +139,7 @@
 %% expr(+X:expr)// is nondet.
 %  Convert Julia expression as a Prolog term to string representation.
 expr(A:>:B)      --> !, "(", expr(A), ";", expr(B), ")".
-expr(A=B)        --> !, "(", expr(A), "=", expr(B), ")".
+expr(A=B)        --> !, "(", expr(A), " = ", expr(B), ")".
 expr(if(A,B))    --> !, "if ",expr(A), " ", expr(B), " end".
 expr(if(A,B,C))  --> !, "if ",expr(A), " ", expr(B), " else ", expr(C), " end".
 expr(using(P))   --> !, "using ", atm(P).
@@ -150,29 +150,13 @@ expr(q(X))       --> !, q(expr(X)).
 expr(qq(X))      --> !, qq(expr(X)).
 expr(noeval(_))  --> !, {fail}. % causes evaluation to fail.
 
-expr(A+B) --> !, "+", args(A,B).
-expr(A-B) --> !, "-", args(A,B).
-expr( -B) --> !, "-", args(B).
-expr( +B) --> !, "+", args(B).
-expr(A^B) --> !, "^", args(A,B).
-expr(A*B) --> !, "*", args(A,B).
-expr(A/B) --> !, "/", args(A,B).
-expr(A\B) --> !, "\\", args(A,B).
-expr(A.^B)--> !, ".^", args(A,B).
-expr(A.*B)--> !, ".*", args(A,B).
-expr(A./B)--> !, "./", args(A,B).
-expr(A.\B)--> !, ".\\", args(A,B).
-expr(A>B) --> !, ">",args(A,B).
-expr(A<B) --> !, "<",args(A,B).
 expr(A>=B)--> !, ">=",args(A,B).
-expr(A=<B)--> !, "=<",args(A,B).
-expr(A==B)--> !, "==",args(A,B).
+expr(A=<B)--> !, "<=",args(A,B).
 expr(A\=B)--> !, "!=",args(A,B).
 expr(\+A) --> !, "!",args(A).
 expr(A:B:C) --> !, expr(colon(A,B,C)).
 expr(A:B) --> !, expr(colon(A,B)).
 expr(rdiv(A,B)) --> !, "//", args(A,B).
-expr(A=>B)--> !, "=>",args(A,B).
 expr(<<(A,B)) --> !, "∘", args(A,B). % function composition
 
 expr([])     --> !, "[]".
