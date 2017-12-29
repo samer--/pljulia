@@ -33,6 +33,8 @@ Add `jl_map/2`, like `jl_call/N` but mapped over lists.
 
 Allow callbacks from Julia to Prolog
 
+Generate more informative Prolog exceptions from Julia exceptions
+
 Handle more Julia types directly: more base types? Arrays of more types? BitArray?
 
 Handle more node types in Julia syntax trees.
@@ -46,5 +48,3 @@ Handle more Julia syntax:
 
     ; to separate positional args from keyword args
     {} for parametric types
-
-Consider allowing Julia to call back to Prolog.

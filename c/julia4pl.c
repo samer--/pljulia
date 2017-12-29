@@ -102,10 +102,6 @@ int get_list_terms(term_t list, int64_t len, term_t *terms)
 
 // ---------------------------------------------------------------------------
 
-// extract a blob from atom
-static void atom_to_blob(atom_t a, void **pdata, PL_blob_t **ptype) {
-}
-
 static PL_blob_t ws_blob;
 static int ws_count=0;
 
