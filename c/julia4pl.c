@@ -63,7 +63,7 @@ static int unify_list_doubles(term_t list, double *x, size_t n)
 }
 
 // read list of integers from term and write to int array
-int get_list_integers(term_t list,  int64_t maxlen, int64_t *len, int64_t *vals)
+static int get_list_integers(term_t list,  int64_t maxlen, int64_t *len, int64_t *vals)
 {
   term_t  head=PL_new_term_ref();
   int64_t    n;
@@ -79,7 +79,7 @@ int get_list_integers(term_t list,  int64_t maxlen, int64_t *len, int64_t *vals)
 }
 
 // read list of floats from term and write to double array
-int get_list_doubles(term_t list, int64_t len, double *vals)
+static int get_list_doubles(term_t list, int64_t len, double *vals)
 {
   term_t  head=PL_new_term_ref();
   int64_t    n;
@@ -92,7 +92,7 @@ int get_list_doubles(term_t list, int64_t len, double *vals)
   return PL_get_nil(list);
 }
 
-int get_list_terms(term_t list, int64_t len, term_t *terms)
+static int get_list_terms(term_t list, int64_t len, term_t *terms)
 {
   int64_t    i;
   list=PL_copy_term_ref(list);
@@ -219,6 +219,7 @@ install_t install() {
    jl_init();
    PL_on_halt(pjl_on_halt, 0);
    jl_eval_string("Base.load_juliarc()");
+	jl_eval_string("pl_call = (m,p,x) -> ccall(:jpl_call_pred, Any, (Cstring, Cstring, Any), m, p, x)");
 }
 
 /* utility function to extract UTF-8 encoded character array from
@@ -545,3 +546,35 @@ foreign_t pjl_ws_name(term_t blob, term_t name) {
        && (type == &ws_blob)
        && PL_unify_atom_chars(name, p->name);
 }
+
+// Call binary predicate, mode (+,-)
+jl_value_t *jpl_call_pred(char *module, char *name, jl_value_t *v) {
+	predicate_t pred = PL_predicate(name, 2, module);
+   term_t terms=PL_new_term_refs(2);
+   jl_value_t *r;
+   int rc;
+
+   rc = jval_term(v, terms)
+     && PL_call_predicate(NULL, PL_Q_NORMAL, pred, terms)
+     && term_jval(terms+1, &r);
+
+   return rc ? r : (jl_error("Prolog: FAIL"), jl_nothing);
+}
+
+// call n-ary predicate, mode (+, ..., +, -)
+/* jl_value_t *jpl_call_pred(char *module, char *name, jl_value_t *v) { */
+/*    jl_datatype_t *dt = (jl_datatype_t *)jl_typeof(v); */
+/*    int arity = jl_nparams(dt), rc=TRUE, i; // must be tuple! */
+/* 	predicate_t pred = PL_predicate(name, arity+1, module); */
+/*    term_t terms=PL_new_term_refs(arity+1); */
+/*    jl_value_t *r; */
+
+/*    for (i=0; rc && i<arity; i++) { */
+/*       rc = jval_term(jl_get_nth_field(v,i), terms+i); */
+/*    } */
+/*    rc = rc */
+/*      && PL_call_predicate(NULL, PL_Q_NORMAL, pred, terms) */
+/*      && term_jval(terms+arity, &r); */
+
+/*    return rc ? r : (jl_error("Prolog: FAIL"), jl_nothing); */
+/* } */
