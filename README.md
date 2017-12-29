@@ -24,14 +24,13 @@ Then do
     ?- X <? rand(3,4,5), ?X.
     ?- X <? #(1,"a",2.2,[1,2,3]).
     ?- maplist(jl_call("println"), [1,3.14,#("a",2.2,float64([3],[4,5,6]))], _).
+    ?- ?pl_call(:user,:succ,4).
 
 See examples/example.pl for more, including plotting.
 
 ## TODO
 
 Add `jl_map/2`, like `jl_call/N` but mapped over lists.
-
-Allow callbacks from Julia to Prolog
 
 Generate more informative Prolog exceptions from Julia exceptions
 
