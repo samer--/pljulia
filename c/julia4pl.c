@@ -120,7 +120,8 @@ int ws_release(atom_t a) {
   struct wsvar *x=PL_blob_data(a, &len, &type);
   if (type!=&ws_blob) return FALSE;
   sprintf(cmd, "%s=nothing", x->name);
-  jl_eval_string(cmd);
+  printf("MGC: user, please execute %s when you have a moment!\n", cmd);
+  /* jl_eval_string(cmd); */
   return TRUE;
 }
 
