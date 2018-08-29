@@ -19,6 +19,7 @@
 
 :- module(dcg_julia,
       [  term_jlstring/2   % (+Expr, -String)  ~Prolog term to Julia string
+      ,  op(200,xfx,::)    % type annotations
       ,  op(150,fx,:)      % symbols
       ,  op(160,yf,'`')    % postfix ctranspose operator
       ,  op(800,xfy,:>:)
@@ -140,6 +141,7 @@
 %  Convert Julia expression as a Prolog term to string representation.
 expr(A:>:B)      --> !, "(", expr(A), ";", expr(B), ")".
 expr(A=B)        --> !, "(", expr(A), " = ", expr(B), ")".
+expr(A::B)       --> !, "(", expr(A), ")::", expr(B). % FIXME: think about syntax for Julia types
 expr(if(A,B))    --> !, "if ",expr(A), " ", expr(B), " end".
 expr(if(A,B,C))  --> !, "if ",expr(A), " ", expr(B), " else ", expr(C), " end".
 expr(using(P))   --> !, "using ", atm(P).
