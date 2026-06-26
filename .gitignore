@@ -1,0 +1,4 @@
+buildenv.sh
+status.db
+lib/
+*.o
