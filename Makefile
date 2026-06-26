@@ -1,7 +1,7 @@
-JL_CONFIG = $(shell julia -e 'print(joinpath(JULIA_HOME, Base.DATAROOTDIR, "julia", "julia-config.jl"))')
-CFLAGS    += $(shell julia $(JL_CONFIG) --cflags)
-LDSOFLAGS += $(shell julia $(JL_CONFIG) --ldflags)
-LDLIBS     = $(shell julia $(JL_CONFIG) --ldlibs)
+JL_SHARE = $(shell julia -e 'print(joinpath(Sys.BINDIR, Base.DATAROOTDIR, "julia"))')
+CFLAGS   += $(shell $(JL_SHARE)/julia-config.jl --cflags)
+LDFLAGS  += $(shell $(JL_SHARE)/julia-config.jl --ldflags)
+LDLIBS   += $(shell $(JL_SHARE)/julia-config.jl --ldlibs)
 
 TARGET=julia4pl
 
@@ -11,7 +11,7 @@ all:	$(SOBJ)
 
 $(SOBJ): c/$(TARGET).o
 	mkdir -p $(PACKSODIR)
-	$(LD) $(LDSOFLAGS) -o $@ $(SWISOLIB) $< $(LDLIBS)
+	$(LD) $(LDSOFLAGS) $(LDFLAGS) -o $@ $(SWISOLIB) $< $(LDLIBS)
 	strip -x $@
 
 check::
@@ -23,7 +23,7 @@ distclean: clean
 	rm -f $(SOBJ)
 
 install-me:
-	swipl -f none -g "pack_install('file:.',[upgrade(true)]), halt"
+	swipl -f none -g "pack_install('.',[upgrade(true), interactive(false), link(true)]), halt"
 
 publish:
-	swipl -f none -g "pack_property(pljulia,download(D)), pack_install(D,[upgrade(true),interactive(false)]), halt"
+	swipl -f none -g "pack_property(pljulia,download(D)), pack_install(D,[upgrade(true),interactive(false),register(true)]), halt"

@@ -267,7 +267,7 @@ static int unify_tree(term_t t, jl_value_t *v) {
    else if (dt==jl_int64_type)   rc = PL_unify_integer(t, jl_unbox_int64(v));
    else if (dt==jl_string_type)  rc = PL_unify_chars(t, PL_STRING | REP_UTF8, -1, jl_string_ptr(v));
    else if (dt==jl_bool_type)    rc = PL_unify_atom_chars(t, jl_unbox_bool(v) ? "true" : "false");
-   else if (dt==jl_sym_type)     rc = PL_unify_chars(t, PL_ATOM | REP_UTF8, -1, sym_name(v));
+   else if (dt==jl_symbol_type)  rc = PL_unify_chars(t, PL_ATOM | REP_UTF8, -1, sym_name(v));
    else if (jl_is_nothing(v))    rc = PL_unify_atom_chars(t, "nothing");
    else if (dt==jl_quotenode_type) rc = result_error("expression", "<QuoteNode>");
    else if (dt==jl_expr_type) {
@@ -311,9 +311,9 @@ static int unify_md_array(term_t t, jl_array_t *v) {
    term_t l = PL_new_term_ref(), shape=PL_new_term_ref();
    jl_datatype_t *et=(jl_datatype_t *)jl_array_eltype((jl_value_t *)v);
    array_unifier_t *unifier;
-   void *pdata = jl_array_data(v);
+   void *pdata = jl_array_data_(v);
    int   ndims = jl_array_ndims(v);
-   size_t *dims = &(v->nrows);
+   size_t *dims = &jl_array_nrows(v);
    char *fname;
 
    if      (et==jl_float64_type) { unifier = float64_unifier; fname = "float64"; }
@@ -333,7 +333,7 @@ static int jval_term(jl_value_t *v, term_t t) {
    else if (dt==jl_int64_type)   rc = PL_unify_integer(t, jl_unbox_int64(v));
    else if (dt==jl_string_type)  rc = PL_unify_chars(t, PL_STRING | REP_UTF8, -1, jl_string_ptr(v));
    else if (dt==jl_bool_type)    rc = PL_unify_atom_chars(t, jl_unbox_bool(v) ? "true" : "false");
-   else if (dt==jl_sym_type)     rc = PL_unify_term(t, PL_FUNCTOR_CHARS, ":", 1, PL_UTF8_CHARS, sym_name(v));
+   else if (dt==jl_symbol_type)  rc = PL_unify_term(t, PL_FUNCTOR_CHARS, ":", 1, PL_UTF8_CHARS, sym_name(v));
    else if (jl_is_nothing(v))    rc = PL_unify_atom_chars(t, "nothing");
    else if (jl_is_array_type(dt)) rc = unify_md_array(t, (jl_array_t *)v);
    else if (jl_is_tuple(v))      rc = unify_tuple(t, dt, v);
@@ -355,7 +355,7 @@ static int get_expr(term_t a, jl_value_t **pv) {
 static int get_array(int n, term_t vals, jl_value_t **pv) {
    jl_value_t *array_type = jl_apply_array_type((jl_value_t *)jl_float64_type, 1); // ndims = 1
    jl_array_t *x          = jl_alloc_array_1d(array_type, n); // also array_2d...
-   return get_list_doubles(vals, n, (double *)jl_array_data(x))
+   return get_list_doubles(vals, n, (double *)jl_array_data_(x))
        && (*pv = (jl_value_t *)x, TRUE);
 }
 
@@ -370,7 +370,7 @@ static int get_md_array(jl_datatype_t *jl_type, array_getter_t *getter,
       case 2: x = jl_alloc_array_2d(array_type, dims[0], dims[1]); break;
       case 3: x = jl_alloc_array_3d(array_type, dims[0], dims[1], dims[2]); break;
    }
-   pdata = jl_array_data(x);
+   pdata = jl_array_data_(x);
    return get_nested(getter, vals, ndims, dims, &pdata)
        && (*pv = (jl_value_t *)x, TRUE);
 }
@@ -399,8 +399,9 @@ static int term_tuple(term_t t, int arity, jl_value_t **pv) {
       else rc=FALSE;
    }
    if (rc) {
-      jl_tupletype_t *tt = jl_apply_tuple_type_v(types, arity);
-      *pv = jl_new_structv(tt, args, arity);
+      /* jl_value_t *tt = jl_apply_tuple_type_v(types, arity); */
+      /* *pv = jl_new_structv(tt, args, arity); */
+      *pv = jl_apply_tuple_type_v(args, arity);
    }
    // !!! free arrays here or give types to Julia GC?
    free(args); free(types);
@@ -432,7 +433,7 @@ static int term_jval(term_t t, jl_value_t **pv) {
       }
       case PL_TERM: {
          atom_t head;
-         int    arity;
+         size_t arity;
          const char *name;
          if (!PL_get_name_arity(t,&head,&arity)) return FALSE;
          name = PL_atom_chars(head);
